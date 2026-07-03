@@ -113,6 +113,8 @@ const CONTINUATIONS = {
     pieces.setStatus(piece.id, 'ready');
     recordSpend({ slug: piece.tenant_slug, operation: 'post.image', refId: piece.id, images: 1, mock: !!result?.mock });
     events.record({ tenantSlug: piece.tenant_slug, name: 'media.post_ready', props: { pieceId: piece.id } });
+    // Phase 5 auto-chain: base image done → archetype composite
+    jobs.enqueue({ kind: 'compose_post', tenantSlug: piece.tenant_slug, refKind: 'piece', refId: piece.id, payload: { pieceId: piece.id }, maxAttempts: 3 });
     return { ok: true };
   },
 
@@ -156,6 +158,8 @@ const CONTINUATIONS = {
     if (fresh.length >= ctx.freshCount && piece.status !== 'ready') {
       pieces.setStatus(piece.id, 'ready');
       events.record({ tenantSlug: piece.tenant_slug, name: 'media.reel_ready', props: { pieceId: piece.id, freshShots: fresh.length, reused: ctx.reusedSlots } });
+      // Phase 5 auto-chain: shots done → beat-cut assembly (kind-string enqueue, no import cycle)
+      jobs.enqueue({ kind: 'assemble_reel', tenantSlug: piece.tenant_slug, refKind: 'piece', refId: piece.id, payload: { pieceId: piece.id }, maxAttempts: 3 });
     }
     return { shots: fresh.length, of: ctx.freshCount };
   },

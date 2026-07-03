@@ -26,7 +26,10 @@ import { registerScrapeJobs, startIntake } from './lib/scrape/runner.js';
 import { intakes, scrapeSources, tenants, purchases, phantoms, campaigns, pieces } from './lib/db.js';
 import { registerScriptGenJobs } from './lib/scriptgen/index.js';
 import { registerMediaJobs, generateMedia, estimateForIntake, onFalWebhook } from './lib/media/render.js';
-import { mediaAssets } from './lib/db.js';
+import { mediaAssets, audioTracks } from './lib/db.js';
+import { registerEditJobs } from './lib/edit/assemble.js';
+import { registerComposeJobs } from './lib/edit/post-compose.js';
+import { ffmpegAvailable } from './lib/edit/audio.js';
 import { registerValuePropJobs } from './lib/valueprop.js';
 import { registerEmailJobs } from './lib/email.js';
 import { createCheckout, markIntakePaid, verifyStripeSignature, handleStripeEvent, paymentsMode } from './lib/payments.js';
@@ -339,6 +342,33 @@ app.post('/api/admin/intake/:id/generate-media', requireAdmin, (req, res) => {
   }
 });
 
+// ── audio library (Phase 5) — the operator's rights-cleared track pool. Raw-body
+// upload (no multer dep): POST the mp3 bytes with metadata in the query string.
+app.post('/api/admin/audio', requireAdmin,
+  express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '25mb' }),
+  async (req, res) => {
+    try {
+      const { title, artist = null, license = null, vibe = '' } = req.query;
+      if (!title) return res.status(400).json({ success: false, error: 'title query param required' });
+      if (!req.body?.length) return res.status(400).json({ success: false, error: 'empty body — send the mp3 bytes' });
+      const key = storage.makeKey('library', 'audio', 'mp3');
+      await storage.put('library', key, req.body, 'audio/mpeg');
+      const id = audioTracks.add({
+        title: String(title).slice(0, 120), artist, source: 'operator_upload',
+        licenseNote: license, r2Key: key,
+        vibeTags: String(vibe).split(',').map((s) => s.trim()).filter(Boolean),
+      });
+      logEvent({ event: 'audio.track_added', refId: id, message: `${title} (${req.body.length} bytes)` });
+      res.json({ success: true, id, r2_key: key });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+app.get('/api/admin/audio', requireAdmin, async (_req, res) => {
+  res.json({ success: true, tracks: audioTracks.list(), ffmpeg: await ffmpegAvailable() });
+});
+
 // Signed-URL redirect for any media asset (console thumbnails/players).
 app.get('/api/admin/media/:assetId/url', requireAdmin, async (req, res) => {
   const asset = mediaAssets.byId(parseInt(req.params.assetId, 10));
@@ -415,6 +445,8 @@ registerValuePropJobs();
 registerEmailJobs();
 registerScriptGenJobs();
 registerMediaJobs();
+registerEditJobs();
+registerComposeJobs();
 jobsWorker.start();
 setInterval(() => { try { adminSessions.purgeExpired(); } catch {} }, 3600_000).unref();
 

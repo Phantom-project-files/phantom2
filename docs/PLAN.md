@@ -57,6 +57,24 @@ v1 (`000_Phantom` → online-phantom.com) is the reference implementation and le
   under a `local/` namespace, one-click promote-to-prod (objects + rows), journey funnel
   dashboards, admin sandbox (arbitrary reel count × brand).
 
+## Post-build operator checklist (once ALL phases are built — operator decision 2026-07-02)
+
+1. **Fal.ai setup** — fund the account, then verify the pinned model ids + input field names
+   against fal.ai/models docs (`FAL_IMAGE_MODEL`/`FAL_VIDEO_MODEL` env + the submit inputs in
+   `lib/media/render.js`). First funded run: 1 phantom + 1 reel + 1 post before any batch.
+2. **Rotate keys** — Claude + Fal keys sat in plaintext in `~/Downloads/Phantom2.0.env.rtf`.
+3. **Google OAuth** — create the OAuth client (GCP console), set GOOGLE_CLIENT_ID/SECRET +
+   authorized redirect `https://<domain>/auth/google/callback`.
+4. **Stripe live** — webhook endpoint + STRIPE_WEBHOOK_SECRET; swap test keys for live at launch.
+5. **Fly + R2 provisioning** — `fly launch` (app `phantom2`, 2 GB), volume, R2 bucket
+   `phantom2-prod` + keys, secrets via `fly secrets set`.
+6. **Audio library** — upload rights-cleared tracks (console → Audio panel) with vibe tags;
+   licensing solution still being evaluated by operator.
+7. **Remotion compositions** — the graphics pass currently ships the ffmpeg end-card backend;
+   scaffold the Remotion project (compositions per `graphics_notes`: infographics, motion curves,
+   chalk effects) behind `REMOTION_ENABLED=1`.
+8. **Domain cutover** — point online-phantom.com at phantom2 once parity is verified.
+
 ## Ops notes
 
 - Staging Fly app `phantom2` (2 vCPU / 2 GB — v1's stampede died on 1 GB); domain

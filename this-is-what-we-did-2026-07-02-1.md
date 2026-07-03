@@ -189,13 +189,44 @@
 - ⚠️ Real-Fal input schemas (nano-banana / seedance field names) are best-guess until the first
   funded run — pinned in one place (`lib/media/render.js` submit inputs + `lib/fal.js` MODELS).
 
+## Phase 5 — Edit layer BUILT + VERIFIED (same session) → v0.6.0
+> Operator decision recorded: **Fal.ai setup (funding + input-schema verification) happens ONCE,
+> after all phase builds are done** — now item #1 on the Post-build operator checklist in
+> `docs/PLAN.md` (with keys rotation, Google creds, Stripe secret, Fly/R2, audio library, Remotion).
+- **`lib/edit/audio.js`** — beat-cut brains: `pickTrack()` (vibe-tag overlap vs the operator's
+  rights-cleared `audio_tracks` library — audio-source-agnostic by design), `detectCuts()` (ffmpeg
+  → mono 16-bit PCM on stdout → 50ms windowed RMS → energy flux → peaks > mean+1.5σ w/ min-gap),
+  `buildCutPlan()` (≤3 segments, transitions SNAP to nearest onset, even-split fallback).
+- **`lib/edit/assemble.js`** — `assemble_reel` job (auto-chained when a reel's shots land):
+  gathers own shots + **campaign-pool siblings for reused slots** (the reuse payoff) → track pick
+  (empty library → assembles SILENT + `no_audio` flag, honest not blocking) → real ffmpeg: per-seg
+  trim → 1080×1920 normalize → concat → track laid under w/ fade-out → graphics pass → R2
+  kind='reel' with full edit_plan/track/shot-provenance meta.
+- **`lib/edit/graphics.js`** — end-card via **chrome_overlay**: transparent PNG card rendered by
+  headless Chrome, composited with ffmpeg's core `overlay` filter. Chose this AFTER real
+  verification caught that **brew's ffmpeg ships without drawtext** (build-dependent filter);
+  overlay is always present. Remotion = post-build item behind `REMOTION_ENABLED=1` (flags +
+  falls back). Graphics failure NEVER drops a reel (ships un-graphed + flagged).
+- **`lib/edit/post-compose.js`** — `compose_post` job (auto-chained after base image): archetype
+  pick from design_prompt keywords (stat_card / quote / product_hero — v1 library condensed),
+  self-contained 1080×1350 HTML composite, shared `chrome-shot.js` helper (v1's per-render
+  profile-dir fix) → R2 kind='post_final'.
+- **Ops:** audio library endpoints (`POST /api/admin/audio` raw-body upload + vibe tags/license
+  note, `GET` list w/ ffmpeg availability); Dockerfile now installs **ffmpeg + chromium**
+  (CHROME_PATH=/usr/bin/chromium); ffmpeg installed on the dev Mac via brew this session.
+- **Verified:** smoke **65/65 PASS** (mock chain: auto-assembled 4 reels + composed 2 posts, reuse
+  pulled 3 pool shots, cut-plan snap math, archetype routing, track scoring, **REAL ffmpeg onset
+  detection: 3 synthetic bursts found at exactly 3s/6s/9s**). **`scripts/verify-edit-real.js`
+  7/7** — REAL end-to-end with ffmpeg-synthesized shots + burst track: 1.7MB real reel (2 shots
+  incl. reused sibling, 2 real onsets, chrome_overlay end-card) + 63KB real Chrome stat-card
+  composite.
+
 ## Next session
-1. **Phase 5 — Edit layer:** beat-cut editor (ffmpeg energy-flux onsets, ≤3 clips/reel, operator
-   audio library), Remotion graphics pass (logo end-card, overlays), post composer (design
-   archetypes, Pinterest-tagged). Docker image gains ffmpeg + chromium.
-2. Ops when ready: Fly app + R2 bucket; GOOGLE creds; STRIPE_WEBHOOK_SECRET; **rotate Claude+Fal
-   keys**; verify Fal input schemas on first funded generation.
-3. Later: scraper headless rung, Apify adapter, Wikipedia fallback.
+1. **Phase 6 — QC:** operator flag → regen (hard max 3 via pieces.regen_count), verdicts + reasons
+   → `<brand_learnings>` into next batch (v1 port), coverage report, QC console panel.
+2. **Phase 7 — Deploy + tracker:** Ayrshare adapters, calendar-driven publish, month-end loop.
+3. **Phase 8 — local claude_code e2e + promote-to-prod + journey dashboards.**
+4. Then: the post-build operator checklist (docs/PLAN.md) — Fal setup first.
 
 ## Runbook
 ```bash

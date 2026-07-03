@@ -76,5 +76,12 @@ accelerated single-path polling (no double-ingest), R2 ingest + media_assets,
 cost preflight (console shows the $ estimate before the operator clicks
 Generate — media never auto-fires), billing breaker wired to Fal errors.
 
-Next: Phase 5 — Edit layer (beat-cut, Remotion graphics, post composer).
-Full plan: `docs/PLAN.md`.
+Phase 5 (Edit layer) ✅ — beat-cut assembler (ffmpeg energy-flux onset detection,
+cuts snapped to drops, ≤3 shots/reel with campaign-pool reuse, operator audio
+library — silent+flagged when empty), chrome_overlay brand end-card (drawtext is
+build-dependent; overlay isn't), post composer (archetype-routed 1080×1350
+composites via headless Chrome). Real-path verified with synthesized media
+(`scripts/verify-edit-real.js`). Docker image: +ffmpeg +chromium.
+
+Next: Phase 6 — QC (flag→regen max 3, learnings loop, coverage).
+Post-build operator checklist (Fal setup, keys, OAuth creds…): `docs/PLAN.md`.

@@ -281,6 +281,71 @@ const pollJobId = jobs.enqueue({ kind: 'fal_poll', tenantSlug: tenant.slug, refK
 check('webhook accelerates queued poll to now', onFalWebhook('wh-test') === 1 && jobStore.byId(pollJobId).run_after === 0);
 jobStore.fail(pollJobId, 'smoke cleanup');
 
+// ── Phase 5: edit layer — beat-cut, graphics seam, post composer ─────────────
+const { registerEditJobs } = await import('../lib/edit/assemble.js');
+const { registerComposeJobs } = await import('../lib/edit/post-compose.js');
+const { pickArchetype } = await import('../lib/edit/post-compose.js');
+const { audioTracks } = await import('../lib/db.js');
+const { scoreTrack, pickTrack, buildCutPlan, detectCuts, ffmpegAvailable, FFMPEG } = await import('../lib/edit/audio.js');
+registerEditJobs();
+registerComposeJobs();
+
+// seed the operator audio library (mock bytes are fine — mock assembly doesn't decode)
+const trackKey = storage.makeKey('library', 'audio', 'mp3');
+await storage.put('library', trackKey, Buffer.from('mock-mp3'), 'audio/mpeg');
+audioTracks.add({ title: 'Summer Heat', artist: 'Test', licenseNote: 'smoke', r2Key: trackKey, vibeTags: ['upbeat', 'summer', 'pop'] });
+const trackKey2 = storage.makeKey('library', 'audio', 'mp3');
+await storage.put('library', trackKey2, Buffer.from('mock-mp3'), 'audio/mpeg');
+audioTracks.add({ title: 'Dark Luxury', artist: 'Test', licenseNote: 'smoke', r2Key: trackKey2, vibeTags: ['moody', 'luxury'] });
+
+check('track selection scores vibe overlap', pickTrack('upbeat summer pop').track.title === 'Summer Heat'
+  && scoreTrack('upbeat summer pop', { vibe_tags: '["upbeat","pop"]' }) === 2);
+
+const plan = buildCutPlan({ shotCount: 3, targetSec: 18, onsets: [5.8, 12.2] });
+check('cut plan snaps transitions to onsets', plan.length === 3
+  && plan[0].end === 5.8 && plan[1].end === 12.2 && plan[2].end === 18 && plan[0].snapped && plan[1].snapped);
+
+// the auto-chain enqueued assemble_reel/compose_post when Phase-4 pieces flipped ready
+let finals = { reel: 0, post_final: 0 };
+for (let i = 0; i < 15; i++) {
+  await new Promise((r) => setTimeout(r, 1000));
+  finals.reel = mediaAssets.byTenantKind(tenant.slug, 'reel').length;
+  finals.post_final = mediaAssets.byTenantKind(tenant.slug, 'post_final').length;
+  if (finals.reel >= 4 && finals.post_final >= 2) break;
+}
+check(`auto-chain assembled final reels (${finals.reel}/4) + composed posts (${finals.post_final}/2)`,
+  finals.reel === 4 && finals.post_final === 2);
+
+const sampleAssembled = mediaAssets.byTenantKind(tenant.slug, 'reel')[0];
+const asmMeta = JSON.parse(sampleAssembled.meta);
+check('assembled reel meta: edit_plan + track pick + shot provenance',
+  Array.isArray(asmMeta.edit_plan) && asmMeta.track_id != null && Array.isArray(asmMeta.shots));
+const reusedInAssembly = mediaAssets.byTenantKind(tenant.slug, 'reel')
+  .flatMap((a) => JSON.parse(a.meta).shots).filter((s) => s.reused).length;
+check(`assembly pulled reused shots from the campaign pool (${reusedInAssembly})`, reusedInAssembly >= 3);
+
+check('archetype picker (stat/quote/hero)', pickArchetype('oversized number stat') === 'stat_card'
+  && pickArchetype('bold quote layout') === 'quote' && pickArchetype('anything else') === 'product_hero');
+
+// REAL ffmpeg onset detection on a synthetic track: quiet base + 3 loud bursts.
+if (await ffmpegAvailable()) {
+  const { spawn } = await import('child_process');
+  const tonePath = path.join(scratch, 'bursts.wav');
+  await new Promise((resolve, reject) => {
+    const p = spawn(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi',
+      '-i', "sine=frequency=200:duration=12",
+      '-af', "volume='if(between(t,3,3.6)+between(t,6,6.6)+between(t,9,9.6),1.0,0.05)':eval=frame",
+      tonePath]);
+    p.on('close', (c) => (c === 0 ? resolve() : reject(new Error('tone gen failed'))));
+    p.on('error', reject);
+  });
+  const det = await detectCuts(tonePath, { minGapSec: 1 });
+  const hits = [3, 6, 9].filter((t) => det.onsets.some((o) => Math.abs(o - t) < 0.3)).length;
+  check(`REAL ffmpeg onset detection finds the 3 bursts (found ${det.onsets.length} onsets, ${hits}/3 at burst times)`, hits === 3);
+} else {
+  console.log('  ~ skipped: real ffmpeg onset test (ffmpeg not installed)');
+}
+
 const sigCheck = verifyStripeSignature('{}', null);
 check('webhook unsigned-dev-mode accepted when no secret', sigCheck.ok === true && sigCheck.unsigned === true);
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
