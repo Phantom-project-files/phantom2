@@ -127,14 +127,43 @@
   funnel pages render → journey events show the whole trail (intake.created → scrape.completed →
   valueprop.ready → plan.selected → checkout.started → funnel.paid) → checkout auth wall 401.
 
+## Phase 3 — Script-gen BUILT + VERIFIED (same session) → v0.4.0
+- **Migration 004:** `phantoms` (6 per intake: name/age/persona/**appearance_prompt** locked for
+  consistency/vibe/ref_image_key/synthetic=1), `campaigns` (title/type/concept/**visual_design**
+  shared per cluster/moment/product_refs), `pieces` (campaign+phantom+kind+pillar+
+  **scheduled_date**+**brief** JSON+regen_count for the QC max-3 cap). Calendar = pieces.scheduled_date.
+- **`lib/moments.js`** — grounded moments feed for campaign types: deterministic season math
+  (hemisphere-aware), curated fixtures (**FIFA WC 2026 Jun 11–Jul 19 — active now**, July 4, BFCM,
+  holidays…), operator-extensible `MOMENTS_JSON`, business events from the scrape (drop cycles).
+  LLM picks from real moments; never invents events.
+- **`lib/scriptgen/index.js`** — the `script_gen` job: counts from plan (or **sandbox overrides**)
+  → cast 6 phantoms (1 synthesis call, PHANTOM_FACE_CONSTRAINT in prompt) → ideate
+  clamp((R+P)/6, 1..30) campaigns against moments (1 call) → **deterministic allocation** (largest-
+  remainder: campaign splits, pillar split 40/25/20/15 over posts, phantoms round-robin, per-day
+  quotas — Premium = exactly 1 reel + 1 post/day) → per-campaign briefs (1 extraction call each;
+  reel: hook/beats/frame_prompts ≤3/video_description/audio_vibe/graphics_notes/caption/cta; post:
+  post_prompt/design_prompt/caption/cta) → **atomic piece insert** + artifact → R2.
+  Budget `SCRIPTGEN_LLM_CALL_BUDGET`=40 (premium ≈ 12 calls). Idempotent: proceeding wipes+rebuilds;
+  auto-trigger guard skips if production exists. **`markIntakePaid()` now auto-enqueues script_gen**
+  (BPMN: payment → scriptgen).
+- **Console:** `production.html?intake=` — phantom cards, campaign list w/ type+moment tags,
+  30-day calendar grid, pieces table w/ expandable briefs; admin intake rows link to it.
+  `POST /api/admin/intake/:id/scriptgen {reels?, posts?, regenerate?}` = the operator's
+  "choose the amount of reels for what brand" sandbox.
+- **Verified:** smoke **48/48 PASS** (6 phantoms; 10 campaigns for 30/30; counts exact; guard
+  blocks double-trigger; calendar 30×(1+1); pillars 12/8/6/4; phantoms all used; brief contracts;
+  sandbox 4/2 regenerate; FIFA active on 2026-07-02 + summer). **Live HTTP (ultra):** override →
+  auto script_gen → 6 phantoms / 25 campaigns / 60+90 pieces / 30 days at exactly 2+3 per day;
+  sandbox 3/2 regenerate over HTTP; production page renders.
+- NOTE: mock mode shows "Mock Campaign N" titles by design — flip CLAUDE_MODE=claude_code (local
+  Max, $0 API) or anthropic_api for real creative through the same pipeline.
+
 ## Next session
-1. **Phase 3 — Script-gen:** plan→quantities+deployment calendar, 5–30 campaign ideas
-   (product/weather/FIFA/world-event/business-event via web-search feed), campaign = reel+post
-   cluster on one visual design, 6 phantoms from scraped personas, per-piece briefs.
-2. Optional ops: Fly app `phantom2` + R2 bucket; GOOGLE_CLIENT_ID/SECRET for live OAuth;
-   Stripe webhook endpoint + STRIPE_WEBHOOK_SECRET when deployed.
-3. Rotate Claude + Fal keys (were plaintext in `Phantom2.0.env.rtf`).
-4. Later scraper rungs: headless-Chrome (Phase 5 image), Apify adapter, Wikipedia fallback.
+1. **Phase 4 — Media engine:** Fal integration real (nano-banana phantom refs + frames, seedance
+   video), webhook-driven job advancement, shot library w/ cross-reel reuse, R2 ingest +
+   media_assets rows, per-batch cost preflight + the billing breaker in anger.
+2. Ops when ready: Fly app + R2 bucket; GOOGLE creds; STRIPE_WEBHOOK_SECRET; rotate Claude+Fal keys.
+3. Later: scraper headless rung, Apify adapter, Wikipedia fallback.
 
 ## Runbook
 ```bash

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Production · Phantom 2.0</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="assets/phantom-logo.svg">
+<link rel="stylesheet" href="assets/phantom.css">
+<style>
+  .stage { max-width: 1100px; margin: 0 auto; padding: 28px 20px 80px; display: flex; flex-direction: column; gap: 16px; }
+  .panel h2 { font-size: 1rem; margin: 0 0 12px; }
+  .phantom-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+  .phantom-card { border: 1px solid var(--hairline); border-radius: 12px; padding: 12px; font-size: .8rem; }
+  .phantom-card b { color: #fff; }
+  .phantom-card .dim { font-size: .72rem; }
+  .camp { border-bottom: 1px solid var(--hairline); padding: 10px 0; }
+  .camp .t { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .tag { font-family: var(--mono); font-size: .66rem; padding: 2px 8px; border: 1px solid var(--hairline); border-radius: 999px; color: var(--text-3); }
+  .tag.product { color: #36e2c4; border-color: rgba(54,226,196,.4); }
+  .tag.fifa, .tag.world_event, .tag.weather, .tag.business_event { color: #ffb454; border-color: rgba(255,180,84,.4); }
+  .cal { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; }
+  .day { border: 1px solid var(--hairline); border-radius: 8px; padding: 6px 8px; font-size: .68rem; font-family: var(--mono); color: var(--text-2); }
+  .day b { color: #fff; display: block; font-size: .7rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--hairline); }
+  th { color: var(--text-3); font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; }
+  details.brief { font-size: .74rem; color: var(--text-2); }
+  details.brief pre { white-space: pre-wrap; background: rgba(255,255,255,.03); border-radius: 8px; padding: 8px; max-height: 220px; overflow: auto; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="admin.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom <small>production</small></a>
+    <a class="btn" href="admin.html" style="height:36px">← Console</a>
+  </div>
+</header>
+
+<main class="stage">
+  <div class="card card-pad panel"><h2 id="head">loading…</h2><div id="sub" class="dim" style="font-size:.8rem"></div></div>
+  <div class="card card-pad panel"><h2>Phantoms <span class="dim" style="font-weight:400; font-size:.75rem">the 6 UGC creators</span></h2><div class="phantom-grid" id="phantoms"></div></div>
+  <div class="card card-pad panel"><h2>Campaigns</h2><div id="campaigns"></div></div>
+  <div class="card card-pad panel"><h2>Deployment calendar</h2><div class="cal" id="calendar"></div></div>
+  <div class="card card-pad panel"><h2>Pieces</h2><div style="overflow-x:auto" id="pieces"></div></div>
+</main>
+
+<script>
+const intakeId = new URLSearchParams(location.search).get('intake');
+if (!intakeId) location.replace('admin.html');
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+(async () => {
+  const r = await fetch('/api/admin/intake/' + encodeURIComponent(intakeId) + '/production', { credentials: 'same-origin' });
+  if (r.status === 401) { location.href = '/app/admin-login.html?next=' + encodeURIComponent(location.pathname + location.search); return; }
+  const d = await r.json();
+  if (!d.success) { document.getElementById('head').textContent = d.error; return; }
+
+  const counts = Object.fromEntries(d.counts.map((c) => [c.kind, c.n]));
+  document.getElementById('head').textContent = d.intake.business_name + ' — production';
+  document.getElementById('sub').textContent = d.intake.tenant_slug + ' · ' + (d.intake.plan || 'no plan') + ' · ' + d.intake.payment_status
+    + ' · ' + (counts.reel || 0) + ' reels / ' + (counts.post || 0) + ' posts across ' + d.campaigns.length + ' campaigns';
+
+  document.getElementById('phantoms').innerHTML = d.phantoms.map((p) =>
+    '<div class="phantom-card"><b>' + esc(p.name) + '</b> <span class="dim">' + (p.age || '') + '</span>'
+    + '<div class="dim">' + esc(p.persona || '') + '</div>'
+    + '<div class="dim" style="margin-top:4px">' + esc(p.vibe || '') + '</div>'
+    + '<div class="dim" style="margin-top:4px; opacity:.7">' + esc((p.appearance_prompt || '').slice(0, 90)) + '…</div></div>').join('')
+    || '<span class="dim">none yet</span>';
+
+  document.getElementById('campaigns').innerHTML = d.campaigns.map((c) => {
+    const n = d.pieces.filter((p) => p.campaign_id === c.id);
+    return '<div class="camp"><div class="t"><b style="color:#fff">' + esc(c.title) + '</b>'
+      + '<span class="tag ' + esc(c.type) + '">' + esc(c.type) + '</span>'
+      + (c.moment ? '<span class="tag">' + esc(c.moment) + '</span>' : '')
+      + '<span class="dim" style="font-size:.72rem">' + n.filter((p) => p.kind === 'reel').length + 'r / ' + n.filter((p) => p.kind === 'post').length + 'p</span></div>'
+      + '<div class="dim" style="font-size:.78rem; margin-top:3px">' + esc(c.concept) + '</div>'
+      + '<div class="dim" style="font-size:.72rem; margin-top:2px; opacity:.75">visual: ' + esc(c.visual_design) + '</div></div>';
+  }).join('') || '<span class="dim">none yet</span>';
+
+  document.getElementById('calendar').innerHTML = d.calendar.map((c) =>
+    '<div class="day"><b>' + esc(c.date.slice(5)) + '</b>' + c.reels + ' reel · ' + c.posts + ' post</div>').join('')
+    || '<span class="dim">no schedule yet</span>';
+
+  const phMap = Object.fromEntries(d.phantoms.map((p) => [p.id, p.name]));
+  const cMap = Object.fromEntries(d.campaigns.map((c) => [c.id, c.title]));
+  document.getElementById('pieces').innerHTML = '<table><thead><tr><th>date</th><th>kind</th><th>pillar</th><th>campaign</th><th>phantom</th><th>status</th><th>brief</th></tr></thead><tbody>'
+    + d.pieces.map((p) => '<tr><td>' + esc(p.scheduled_date) + '</td><td>' + p.kind + '</td><td>' + esc(p.pillar || '—')
+      + '</td><td>' + esc(cMap[p.campaign_id] || p.campaign_id) + '</td><td>' + esc(phMap[p.phantom_id] || '—')
+      + '</td><td>' + esc(p.status) + '</td><td><details class="brief"><summary>view</summary><pre>'
+      + esc(JSON.stringify(p.brief, null, 1)) + '</pre></details></td></tr>').join('')
+    + '</tbody></table>';
+})();
+</script>
+
+</body>
+</html>

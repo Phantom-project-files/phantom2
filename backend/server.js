@@ -23,7 +23,8 @@ import { logEvent, recentLogs } from './lib/logs.js';
 import { readAdminFromCookie, requireAdmin, requireAdminPage } from './middleware/requireAdmin.js';
 import adminAuthRoutes from './admin/auth-routes.js';
 import { registerScrapeJobs, startIntake } from './lib/scrape/runner.js';
-import { intakes, scrapeSources, tenants, purchases } from './lib/db.js';
+import { intakes, scrapeSources, tenants, purchases, phantoms, campaigns, pieces } from './lib/db.js';
+import { registerScriptGenJobs } from './lib/scriptgen/index.js';
 import { registerValuePropJobs } from './lib/valueprop.js';
 import { registerEmailJobs } from './lib/email.js';
 import { createCheckout, markIntakePaid, verifyStripeSignature, handleStripeEvent, paymentsMode } from './lib/payments.js';
@@ -297,6 +298,41 @@ app.post('/api/admin/intake/:id/override', requireAdmin, (req, res) => {
   }
 });
 
+// Phase 3: production view + sandbox script-gen ("choose the amount of reels I
+// want to produce and for what brand" — counts override the plan; regenerate wipes+rebuilds).
+app.post('/api/admin/intake/:id/scriptgen', requireAdmin, (req, res) => {
+  const intake = intakes.byId(req.params.id);
+  if (!intake) return res.status(404).json({ success: false, error: 'not found' });
+  if (!intake.scrape_key) return res.status(400).json({ success: false, error: 'scrape has not completed yet' });
+  const { reels = null, posts = null, regenerate = false } = req.body || {};
+  const jobId = jobsWorker.enqueue({
+    kind: 'script_gen', tenantSlug: intake.tenant_slug, refKind: 'intake', refId: intake.id,
+    payload: {
+      intakeId: intake.id,
+      reels: Number.isInteger(reels) && reels > 0 ? Math.min(reels, 200) : null,
+      posts: Number.isInteger(posts) && posts > 0 ? Math.min(posts, 300) : null,
+      regenerate: !!regenerate,
+    },
+    maxAttempts: 2,
+  });
+  res.json({ success: true, job_id: jobId });
+});
+
+app.get('/api/admin/intake/:id/production', requireAdmin, (req, res) => {
+  const intake = intakes.byId(req.params.id);
+  if (!intake) return res.status(404).json({ success: false, error: 'not found' });
+  const pieceRows = pieces.byIntake(intake.id).map((p) => ({ ...p, brief: JSON.parse(p.brief) }));
+  res.json({
+    success: true,
+    intake: { id: intake.id, business_name: intake.business_name, tenant_slug: intake.tenant_slug, plan: intake.plan, payment_status: intake.payment_status },
+    phantoms: phantoms.byTenant(intake.tenant_slug).filter((p) => p.intake_id === intake.id),
+    campaigns: campaigns.byIntake(intake.id).map((c) => ({ ...c, product_refs: JSON.parse(c.product_refs || '[]') })),
+    pieces: pieceRows,
+    counts: pieces.countByIntake(intake.id),
+    calendar: pieces.calendar(intake.id),
+  });
+});
+
 app.get('/api/admin/intake/:id', requireAdmin, async (req, res) => {
   const intake = intakes.byId(req.params.id);
   if (!intake) return res.status(404).json({ success: false, error: 'not found' });
@@ -334,6 +370,7 @@ app.use((err, req, res, _next) => {
 registerScrapeJobs();
 registerValuePropJobs();
 registerEmailJobs();
+registerScriptGenJobs();
 jobsWorker.start();
 setInterval(() => { try { adminSessions.purgeExpired(); } catch {} }, 3600_000).unref();
 

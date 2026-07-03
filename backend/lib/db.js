@@ -430,6 +430,86 @@ export const scrapeSources = {
   byIntake(intakeId) { return _sourcesByIntake.all(intakeId); },
 };
 
+// ── phantoms / campaigns / pieces (Phase 3 production state) ─────────────────
+const _phantomInsert = db.prepare(`
+  INSERT INTO phantoms (tenant_slug, intake_id, name, age, persona, appearance_prompt, vibe)
+  VALUES (@tenant_slug, @intake_id, @name, @age, @persona, @appearance_prompt, @vibe)
+`);
+const _phantomsByTenant = db.prepare('SELECT * FROM phantoms WHERE tenant_slug = ? ORDER BY id');
+const _phantomById = db.prepare('SELECT * FROM phantoms WHERE id = ?');
+const _phantomSetStatus = db.prepare('UPDATE phantoms SET status = ?, ref_image_key = COALESCE(?, ref_image_key) WHERE id = ?');
+const _phantomsDeleteByIntake = db.prepare('DELETE FROM phantoms WHERE intake_id = ?');
+
+export const phantoms = {
+  cast(row) {
+    const r = _phantomInsert.run({
+      tenant_slug: row.tenantSlug, intake_id: row.intakeId, name: row.name,
+      age: row.age ?? null, persona: row.persona ?? null,
+      appearance_prompt: row.appearancePrompt, vibe: row.vibe ?? null,
+    });
+    return _phantomById.get(r.lastInsertRowid);
+  },
+  byTenant(slug) { return _phantomsByTenant.all(slug); },
+  byId(id) { return _phantomById.get(id) || null; },
+  setStatus(id, status, refImageKey = null) { _phantomSetStatus.run(status, refImageKey, id); },
+  deleteByIntake(intakeId) { return _phantomsDeleteByIntake.run(intakeId).changes; },
+};
+
+const _campaignInsert = db.prepare(`
+  INSERT INTO campaigns (tenant_slug, intake_id, title, type, concept, visual_design, moment, product_refs)
+  VALUES (@tenant_slug, @intake_id, @title, @type, @concept, @visual_design, @moment, @product_refs)
+`);
+const _campaignsByIntake = db.prepare('SELECT * FROM campaigns WHERE intake_id = ? ORDER BY id');
+const _campaignById = db.prepare('SELECT * FROM campaigns WHERE id = ?');
+const _campaignsDeleteByIntake = db.prepare('DELETE FROM campaigns WHERE intake_id = ?');
+
+export const campaigns = {
+  create(row) {
+    const r = _campaignInsert.run({
+      tenant_slug: row.tenantSlug, intake_id: row.intakeId, title: row.title, type: row.type,
+      concept: row.concept, visual_design: row.visualDesign, moment: row.moment ?? null,
+      product_refs: row.productRefs ? JSON.stringify(row.productRefs) : null,
+    });
+    return _campaignById.get(r.lastInsertRowid);
+  },
+  byIntake(intakeId) { return _campaignsByIntake.all(intakeId); },
+  byId(id) { return _campaignById.get(id) || null; },
+  deleteByIntake(intakeId) { return _campaignsDeleteByIntake.run(intakeId).changes; },
+};
+
+const _pieceInsert = db.prepare(`
+  INSERT INTO pieces (tenant_slug, intake_id, campaign_id, phantom_id, kind, pillar, scheduled_date, brief)
+  VALUES (@tenant_slug, @intake_id, @campaign_id, @phantom_id, @kind, @pillar, @scheduled_date, @brief)
+`);
+const _piecesByIntake = db.prepare('SELECT * FROM pieces WHERE intake_id = ? ORDER BY scheduled_date, id');
+const _pieceById = db.prepare('SELECT * FROM pieces WHERE id = ?');
+const _pieceSetStatus = db.prepare('UPDATE pieces SET status = ? WHERE id = ?');
+const _piecesCountByIntake = db.prepare('SELECT kind, COUNT(*) AS n FROM pieces WHERE intake_id = ? GROUP BY kind');
+const _piecesCalendar = db.prepare(`
+  SELECT scheduled_date AS date,
+         SUM(CASE WHEN kind = 'reel' THEN 1 ELSE 0 END) AS reels,
+         SUM(CASE WHEN kind = 'post' THEN 1 ELSE 0 END) AS posts
+    FROM pieces WHERE intake_id = ? GROUP BY scheduled_date ORDER BY scheduled_date
+`);
+const _piecesDeleteByIntake = db.prepare('DELETE FROM pieces WHERE intake_id = ?');
+const _pieceInsertMany = db.transaction((rows) => { for (const r of rows) _pieceInsert.run(r); });
+
+export const pieces = {
+  createMany(rows) {
+    _pieceInsertMany(rows.map((row) => ({
+      tenant_slug: row.tenantSlug, intake_id: row.intakeId, campaign_id: row.campaignId,
+      phantom_id: row.phantomId ?? null, kind: row.kind, pillar: row.pillar ?? null,
+      scheduled_date: row.scheduledDate, brief: JSON.stringify(row.brief),
+    })));
+  },
+  byIntake(intakeId) { return _piecesByIntake.all(intakeId); },
+  byId(id) { return _pieceById.get(id) || null; },
+  setStatus(id, status) { _pieceSetStatus.run(status, id); },
+  countByIntake(intakeId) { return _piecesCountByIntake.all(intakeId); },
+  calendar(intakeId) { return _piecesCalendar.all(intakeId); },
+  deleteByIntake(intakeId) { return _piecesDeleteByIntake.run(intakeId).changes; },
+};
+
 // ── audio_tracks ──────────────────────────────────────────────────────────────
 const _trackInsert = db.prepare(`
   INSERT INTO audio_tracks (title, artist, source, license_note, r2_key, duration_sec, bpm, vibe_tags)

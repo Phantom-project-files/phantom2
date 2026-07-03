@@ -146,6 +146,7 @@ async function refresh() {
             + '<span class="dim mono" style="font-size:.72rem">' + esc(i.tenant_slug) + ' · ' + esc(i.status)
             + (i.llm_calls ? ' · ' + i.llm_calls + ' llm calls' : '')
             + (i.value_prop ? ' · <a href="/app/proposal.html?intake=' + esc(i.id) + '" target="_blank">proposal</a>' : '')
+            + (i.payment_status !== 'unpaid' ? ' · <a href="/app/production.html?intake=' + esc(i.id) + '">production</a>' : '')
             + (i.scrape_key ? ' · <a href="/api/admin/intake/' + esc(i.id) + '" target="_blank">scrape.json</a>' : '')
             + '</span></div>'
             + '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">' + (chips || '<span class="dim" style="font-size:.78rem">queued…</span>') + payChip + '</div>'

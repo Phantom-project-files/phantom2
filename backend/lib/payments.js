@@ -14,6 +14,7 @@ import { intakes, purchases, events } from './db.js';
 import { tierConfig, isValidTier } from './tiers.js';
 import { logEvent } from './logs.js';
 import { sendEmail } from './email.js';
+import * as jobs from './jobs.js';
 
 const STRIPE_API = 'https://api.stripe.com/v1';
 const mode = () => (process.env.STRIPE_MODE || (process.env.STRIPE_SECRET_KEY ? 'live' : 'mock')).toLowerCase();
@@ -91,6 +92,8 @@ export function markIntakePaid(intakeId, { via, plan = null, sessionId = null })
   events.record({ tenantSlug: intake.tenant_slug, name: 'funnel.paid', props: { intakeId, via, plan: plan || intake.plan } });
   logEvent({ event: 'funnel.paid', tenantSlug: intake.tenant_slug, refId: intakeId, message: `via=${via} plan=${plan || intake.plan}` });
   sendEmail({ intakeId, template: 'payment_confirmed', tenantSlug: intake.tenant_slug });
+  // BPMN: payment unlocks Agent-ScriptGen → phantoms + campaigns + calendar + briefs.
+  jobs.enqueue({ kind: 'script_gen', tenantSlug: intake.tenant_slug, refKind: 'intake', refId: intakeId, payload: { intakeId }, maxAttempts: 2 });
   return intakes.byId(intakeId);
 }
 

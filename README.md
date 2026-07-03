@@ -63,5 +63,12 @@ checkout + signature-verified webhook (test-mode verified live), admin override
 (skip OAuth+payment, full pipeline unlock), agent-email skeleton (mock/Resend, stage
 triggers off the events stream), full funnel pages with journey tracking.
 
-Next: Phase 3 — Script-gen (calendar, campaigns, 6 phantoms, briefs).
+Phase 3 (Script-gen) ✅ — payment auto-triggers production state: 6 phantoms cast
+from scraped personas (locked appearance prompts), 5–30 campaigns ideated against a
+grounded moments feed (FIFA/holidays/season/drops — never invented), deterministic
+allocation (pillar split, phantom round-robin, Premium = exactly 1 reel + 1 post/day
+calendar), per-piece production briefs (frame prompts ≤3, video/audio/graphics
+instructions). Operator sandbox: custom reel/post counts per brand + regenerate.
+
+Next: Phase 4 — Media engine (Fal nano-banana + seedance, shot library, webhooks).
 Full plan: `docs/PLAN.md`.

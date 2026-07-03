@@ -124,10 +124,12 @@ process.env.EMAIL_MODE = 'mock';
 const { registerScrapeJobs, startIntake } = await import('../lib/scrape/runner.js');
 const { registerValuePropJobs } = await import('../lib/valueprop.js');
 const { registerEmailJobs } = await import('../lib/email.js');
-const { intakes, scrapeSources, purchases, users, orgs } = await import('../lib/db.js');
+const { registerScriptGenJobs } = await import('../lib/scriptgen/index.js');
+const { intakes, scrapeSources, purchases, users, orgs, phantoms, campaigns, pieces } = await import('../lib/db.js');
 registerScrapeJobs();
 registerValuePropJobs();
 registerEmailJobs();
+registerScriptGenJobs();
 
 const { intake, tenant } = startIntake({ businessName: 'Acme Swim', website: 'acme-swim.example' });
 check('intake + tenant minted', !!intake.id && /^acme-swim-/.test(tenant.slug));
@@ -190,6 +192,55 @@ check('payment email delivered (mock)', events.countsSince(0).some((e) => e.name
 
 const override = markIntakePaid(intake.id, { via: 'admin_override', plan: 'ultra' });
 check('admin override path entitles + swaps plan', override.payment_status === 'admin_override' && override.plan === 'ultra');
+
+// ── Phase 3: script-gen — phantoms, campaigns, calendar, briefs ($0 mock) ────
+// markIntakePaid fired twice above (stripe premium + override ultra) — the first
+// script_gen run builds premium's 30/30; the second must skip (guard).
+await new Promise((r) => setTimeout(r, 4000));
+const cast = phantoms.byTenant(tenant.slug);
+check('6 phantoms cast', cast.length === 6 && !!cast[0].appearance_prompt);
+
+const camps = campaigns.byIntake(intake.id);
+check(`campaigns ideated in range (got ${camps.length})`, camps.length >= 3 && camps.length <= 30);
+check('campaign has shared visual design + type', !!camps[0].visual_design && !!camps[0].type);
+
+const allPieces = pieces.byIntake(intake.id);
+const reels = allPieces.filter((p) => p.kind === 'reel');
+const posts = allPieces.filter((p) => p.kind === 'post');
+check(`premium counts honored (30 reels + 30 posts, got ${reels.length}/${posts.length})`, reels.length === 30 && posts.length === 30);
+check('guard: second paid trigger did not duplicate production', allPieces.length === 60);
+
+const cal = pieces.calendar(intake.id);
+check('calendar: 30 days, premium = exactly 1 reel + 1 post per day',
+  cal.length === 30 && cal.every((d) => d.reels === 1 && d.posts === 1));
+
+const usedPhantoms = new Set(allPieces.map((p) => p.phantom_id));
+check('all 6 phantoms used across pieces', usedPhantoms.size === 6);
+
+const pillarCounts = posts.reduce((m, p) => { m[p.pillar] = (m[p.pillar] || 0) + 1; return m; }, {});
+check(`pillar split over 30 posts (product 12 / brand 8 / educational 6 / lifestyle 4) → ${JSON.stringify(pillarCounts)}`,
+  pillarCounts.product === 12 && pillarCounts.brand === 8 && pillarCounts.educational === 6 && pillarCounts.lifestyle === 4);
+
+const sampleReel = JSON.parse(reels[0].brief);
+const samplePost = JSON.parse(posts[0].brief);
+check('reel brief contract (hook/frames≤3/video/audio/graphics/caption)',
+  !!sampleReel.hook && Array.isArray(sampleReel.frame_prompts) && sampleReel.frame_prompts.length <= 3
+  && !!sampleReel.video_description && !!sampleReel.audio_vibe && !!sampleReel.graphics_notes && !!sampleReel.caption);
+check('post brief contract (post_prompt/design_prompt/caption)',
+  !!samplePost.post_prompt && !!samplePost.design_prompt && !!samplePost.caption);
+
+// sandbox custom counts + regenerate (the operator's "choose the amount" ask)
+const { runScriptGen } = await import('../lib/scriptgen/index.js');
+const custom = await runScriptGen({ intakeId: intake.id, reels: 4, posts: 2, regenerate: true });
+const customPieces = pieces.byIntake(intake.id);
+check('sandbox regenerate with custom counts (4 reels / 2 posts)',
+  custom.ok === true && customPieces.filter((p) => p.kind === 'reel').length === 4
+  && customPieces.filter((p) => p.kind === 'post').length === 2);
+
+const { activeMoments } = await import('../lib/moments.js');
+const mom = activeMoments({ now: new Date('2026-07-02T12:00:00Z'), location: 'Los Angeles' });
+check('moments feed: FIFA WC active on 2026-07-02 + summer season',
+  mom.some((m) => m.key === 'fifa_wc_2026' && m.active) && mom.some((m) => m.key === 'season' && /summer/.test(m.label)));
 
 const sigCheck = verifyStripeSignature('{}', null);
 check('webhook unsigned-dev-mode accepted when no secret', sigCheck.ok === true && sigCheck.unsigned === true);
