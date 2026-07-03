@@ -71,8 +71,10 @@ v1 (`000_Phantom` → online-phantom.com) is the reference implementation and le
      (a 60-piece batch estimate is now honest — reels ≈ $1.97/fresh shot at 6 s).
    - If live ingest ever hits SSRF_BLOCKED on `storage.googleapis.com`, add it via
      `INGEST_ALLOWED_HOSTS` (env edit, no deploy). `v3b.fal.media` already matches.
-   - REMAINING (needs operator $): fund account, then first funded run: 1 phantom +
-     1 reel + 1 post before any batch.
+   - ✅ FIRST FUNDED RUN DONE 2026-07-03 ($18.48 added; ~$4.39 spent): 2 phantoms + 1 post +
+     1 reel (2 shots, assembled mp4) all real. Two live-only fixes landed: queue reads on the
+     base app path (subpath status 405s) + `storage.fetchableUrl()` data-URI refs for local
+     backend. Item 1 is CLOSED — remaining Fal work is just watching real spend vs estimates.
 2. **Rotate keys** — Claude + Fal keys sat in plaintext in `~/Downloads/Phantom2.0.env.rtf`.
 3. **Google OAuth** — create the OAuth client (GCP console), set GOOGLE_CLIENT_ID/SECRET +
    authorized redirect `https://<domain>/auth/google/callback`.
