@@ -76,6 +76,11 @@
     </div>
 
     <div class="card card-pad panel">
+      <h2>Funnel — sessions per stage (7d)</h2>
+      <div id="funnelPanel"><div class="empty">loading…</div></div>
+    </div>
+
+    <div class="card card-pad panel">
       <h2>User journey — events (24h)</h2>
       <div id="eventsPanel"><div class="empty">loading…</div></div>
     </div>
@@ -146,13 +151,23 @@ async function refresh() {
             + '<span class="dim mono" style="font-size:.72rem">' + esc(i.tenant_slug) + ' · ' + esc(i.status)
             + (i.llm_calls ? ' · ' + i.llm_calls + ' llm calls' : '')
             + (i.value_prop ? ' · <a href="/app/proposal.html?intake=' + esc(i.id) + '" target="_blank">proposal</a>' : '')
-            + (i.payment_status !== 'unpaid' ? ' · <a href="/app/production.html?intake=' + esc(i.id) + '">production</a>' : '')
+            + (i.payment_status !== 'unpaid' ? ' · <a href="/app/production.html?intake=' + esc(i.id) + '">production</a> · <a href="/app/gallery.html?intake=' + esc(i.id) + '" target="_blank">gallery</a>' : '')
             + (i.scrape_key ? ' · <a href="/api/admin/intake/' + esc(i.id) + '" target="_blank">scrape.json</a>' : '')
             + '</span></div>'
             + '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">' + (chips || '<span class="dim" style="font-size:.78rem">queued…</span>') + payChip + '</div>'
             + (flags.length ? '<div class="dim" style="font-size:.74rem; margin-top:4px">⚑ ' + flags.map(esc).join(' · ') + '</div>' : '')
             + '</div>';
         }).join('');
+
+    const fu = await j('/api/admin/funnel?hours=168');
+    const maxS = Math.max(1, ...fu.funnel.map((s) => s.sessions));
+    document.getElementById('funnelPanel').innerHTML = fu.funnel.map((s) =>
+      '<div style="display:flex; align-items:center; gap:10px; margin:4px 0">'
+      + '<span class="dim mono" style="width:150px; font-size:.7rem">' + esc(s.stage) + '</span>'
+      + '<div style="flex:1; height:16px; background:rgba(255,255,255,.04); border-radius:4px; overflow:hidden">'
+      + '<div style="width:' + Math.round((s.sessions / maxS) * 100) + '%; height:100%; background:linear-gradient(90deg, var(--accent,#7c5cff), var(--accent-2,#9d86ff))"></div></div>'
+      + '<span class="mono" style="width:90px; font-size:.7rem; color:var(--text-2)">' + s.sessions + ' · ' + s.pct_of_top + '%'
+      + (s.drop_from_prev > 0 ? ' <span style="color:#ff5470">−' + s.drop_from_prev + '%</span>' : '') + '</span></div>').join('');
 
     const ev = await j('/api/admin/events/summary');
     document.getElementById('eventsPanel').innerHTML =

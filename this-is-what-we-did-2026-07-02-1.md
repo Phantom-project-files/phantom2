@@ -279,11 +279,44 @@
   rows + implicit publish sync; month-end winners/narrative/rules; report persisted; performance
   rules inside `<brand_learnings>`; report email fired). Boot sanity clean.
 
-## Next session
-1. **Phase 8 (final build phase):** local claude_code e2e run-through, promote-to-prod sync
-   (local/ R2 namespace → prod), journey funnel dashboard, customer gallery + ZIP download
-   (Standard-tier delivery), `MEDIA_AUTOGEN` launch wiring.
-2. Then: the post-build operator checklist (docs/PLAN.md) — Fal setup first.
+## Phase 8 — FINAL BUILD PHASE, BUILT + VERIFIED (same session) → v0.9.0
+## 🏁 ALL 8 PHASES COMPLETE — the full BPMN is implemented
+- **`CLAUDE_MODE=claude_code` VERIFIED FOR REAL:** `scripts/verify-claude-code.js` ran ONE live
+  completion through the operator's logged-in Claude Code CLI — schema-validated JSON back in
+  13.2s, **$0 cost marker recorded**. The whole pipeline can run locally on the Max plan.
+- **Promote-to-prod (`lib/promote.js` + `scripts/promote-tenant.js`):** exportTenantBundle (rows:
+  tenant/intakes/phantoms/campaigns/pieces/qc_verdicts/media_assets, faithful copies) →
+  `POST /api/admin/import/tenant` on prod (**integer ids remapped** incl. meta refs; slug
+  collision → 409; deployments/metrics stay local) → `PUT /api/admin/import/media?key=` per file.
+  Build locally on the Max sub → review → one command pushes the tenant + media to prod/R2.
+- **Journey funnel dashboard:** `GET /api/admin/funnel` — distinct sessions per stage
+  (page.index → intake.submitted → scrape.completed → proposal.viewed → plan.selected →
+  checkout.started → funnel.paid) w/ pct-of-top + drop-off; bar-viz panel in admin.html.
+- **Gallery + ZIP (Standard-tier delivery + every tier's review surface):** `gallery.html?intake=`
+  (media grid w/ inline video, customer-guarded: admin OR claiming org), signed media proxy,
+  `GET /api/intake/:id/download.zip` — archiver stream, `date_kind_id.ext` names. **archiver
+  pinned @7** (v8 is an ESM rewrite w/ different API — boot crash caught live, twice).
+- **`MEDIA_AUTOGEN=1` launch wiring:** scriptgen completion chains straight into generateMedia —
+  live-verified hands-free: paid → 60/60 pieces ready with zero clicks. Default stays OFF.
+- **Product rule from a live-caught FK bug:** once ANY piece is deployed, full scriptgen
+  regenerate is **blocked** ("published content is a record") — per-piece QC regen stays open.
+  The deployments FK would otherwise have corrupted on wipe.
+- **Verified:** smoke **98/98 PASS** (funnel 3→2→1 math; autogen chain; gallery finals; export
+  bundle; import remap incl. piece↔campaign/phantom re-links; 409 on re-import; regen-block).
+  Live HTTP: hands-free 60/60; gallery 4 items; **ZIP HTTP 200 w/ 4 correctly-named entries**;
+  anon → gate-blocked; funnel endpoint live. claude_code real call ✅.
+
+## THE BUILD IS DONE — what remains is the post-build operator checklist (docs/PLAN.md):
+1. **Fal.ai** — fund + verify nano-banana/seedance input schemas (1 phantom + 1 reel + 1 post first)
+2. Rotate Claude + Fal keys (were plaintext in Downloads)
+3. Google OAuth client (GCP) → GOOGLE_CLIENT_ID/SECRET
+4. Stripe live keys + webhook secret
+5. Fly app `phantom2` + volume + R2 bucket + secrets
+6. Upload rights-cleared audio tracks w/ vibe tags (licensing solution still open)
+7. Remotion compositions scaffold (graphics pass currently ships chrome_overlay end-card)
+8. Domain cutover online-phantom.com → phantom2 at parity
+Runbook stays: `npm run smoke` (98 checks) · `scripts/verify-edit-real.js` · `scripts/verify-claude-code.js` ·
+release = npm version → tag → push --follow-tags → fly deploy.
 
 ## Runbook
 ```bash

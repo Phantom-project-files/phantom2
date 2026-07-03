@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your content · Phantom</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="assets/phantom-logo.svg">
+<link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/track.js"></script>
+<style>
+  .stage { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .item { border: 1px solid var(--hairline); border-radius: 14px; overflow: hidden; background: var(--surface-2, rgba(255,255,255,.02)); }
+  .item .media { aspect-ratio: 4/5; background: #0a0b10; display: grid; place-items: center; }
+  .item .media img, .item .media video { width: 100%; height: 100%; object-fit: cover; }
+  .item .meta { padding: 10px 12px; font-size: .78rem; color: var(--text-2); }
+  .item .meta .row { display: flex; justify-content: space-between; gap: 8px; color: var(--text-3); font-family: var(--mono); font-size: .68rem; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom <small>gallery</small></a>
+  </div>
+</header>
+
+<main class="stage">
+  <div class="head">
+    <div><h1 style="font-family:var(--display); color:#fff; margin:0" id="title">Your content</h1>
+      <span class="dim" style="font-size:.82rem" id="count"></span></div>
+    <a class="btn btn-primary" id="zipBtn" style="height:44px" download>Download all (.zip)</a>
+  </div>
+  <div class="grid" id="grid"><span class="dim">loading…</span></div>
+</main>
+
+<script>
+const intakeId = new URLSearchParams(location.search).get('intake');
+if (!intakeId) document.getElementById('grid').textContent = 'missing ?intake=';
+document.getElementById('zipBtn').href = '/api/intake/' + encodeURIComponent(intakeId) + '/download.zip';
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+(async () => {
+  const r = await fetch('/api/intake/' + encodeURIComponent(intakeId) + '/gallery', { credentials: 'same-origin' });
+  const d = await r.json();
+  if (!d.success) { document.getElementById('grid').textContent = d.error; return; }
+  document.getElementById('title').textContent = d.business_name + ' — your content';
+  document.getElementById('count').textContent = d.items.length + ' pieces ready';
+  document.getElementById('grid').innerHTML = d.items.map((it) => {
+    const src = '/api/intake/' + encodeURIComponent(intakeId) + '/media/' + it.asset_id;
+    const media = it.kind === 'reel'
+      ? '<video src="' + src + '" controls muted playsinline preload="metadata"></video>'
+      : '<img src="' + src + '" loading="lazy" alt="">';
+    return '<div class="item"><div class="media">' + media + '</div><div class="meta">'
+      + '<div class="row"><span>' + it.kind + ' · ' + esc(it.scheduled_date) + '</span><span>' + esc(it.status) + '</span></div>'
+      + esc(it.caption || '') + '</div></div>';
+  }).join('') || '<span class="dim">nothing ready yet — check back soon</span>';
+  track('gallery.viewed', { items: d.items.length });
+})();
+</script>
+
+</body>
+</html>

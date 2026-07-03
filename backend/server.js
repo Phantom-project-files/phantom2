@@ -36,6 +36,9 @@ import { rollup as qcRollup, summarizeLearnings } from './lib/qc-learnings.js';
 import { connectTenant, deploySchedule, registerDeployJobs } from './lib/deploy/index.js';
 import { registerTrackerJobs, runMonthEndReport } from './lib/tracker/index.js';
 import { deployments, reports, socialConnections } from './lib/db.js';
+import { importTenantBundle } from './lib/promote.js';
+import { createRequire } from 'module';
+const archiver = createRequire(import.meta.url)('archiver'); // CJS pkg, no ESM default
 import { registerValuePropJobs } from './lib/valueprop.js';
 import { registerEmailJobs } from './lib/email.js';
 import { createCheckout, markIntakePaid, verifyStripeSignature, handleStripeEvent, paymentsMode } from './lib/payments.js';
@@ -380,6 +383,115 @@ app.get('/api/admin/intake/:id/coverage', requireAdmin, (req, res) => {
 app.get('/api/admin/tenant/:slug/learnings', requireAdmin, async (req, res) => {
   res.json({ success: true, rollup: qcRollup(req.params.slug), bullets: await summarizeLearnings(req.params.slug) });
 });
+
+// ── journey funnel (Phase 8) — stage conversion across distinct sessions ─────
+const FUNNEL_STAGES = ['page.index', 'intake.submitted', 'scrape.completed', 'proposal.viewed', 'plan.selected', 'checkout.started', 'funnel.paid'];
+app.get('/api/admin/funnel', requireAdmin, (req, res) => {
+  const hours = Math.min(parseInt(req.query.hours || '168', 10) || 168, 24 * 90);
+  const since = Math.floor(Date.now() / 1000) - hours * 3600;
+  const stages = events.funnel(FUNNEL_STAGES, since);
+  const withConversion = stages.map((s, i) => ({
+    ...s,
+    pct_of_top: stages[0].sessions ? Math.round((s.sessions / stages[0].sessions) * 100) : 0,
+    drop_from_prev: i > 0 && stages[i - 1].sessions ? Math.round((1 - s.sessions / stages[i - 1].sessions) * 100) : 0,
+  }));
+  res.json({ success: true, hours, funnel: withConversion });
+});
+
+// ── gallery + ZIP delivery (Phase 8) — the Standard-tier path, and every
+// tier's review surface. Admin or the claiming customer can view/download.
+function canViewIntake(req, intake) {
+  if (readAdminFromCookie(req)) return true;
+  const user = readUserFromCookie(req);
+  return !!(user && intake.org_id && user.orgId === intake.org_id);
+}
+
+app.get('/api/intake/:id/gallery', (req, res) => {
+  const intake = intakes.byId(req.params.id);
+  if (!intake) return res.status(404).json({ success: false, error: 'not found' });
+  if (!canViewIntake(req, intake)) return res.status(403).json({ success: false, error: 'forbidden' });
+  const finals = { reel: 'reel', post: 'post_final' };
+  const items = pieces.byIntake(intake.id)
+    .filter((p) => ['ready', 'approved'].includes(p.status))
+    .map((p) => {
+      const asset = mediaAssets.byRef('piece', p.id).find((a) => a.kind === finals[p.kind]);
+      const brief = JSON.parse(p.brief);
+      return asset ? {
+        piece_id: p.id, kind: p.kind, status: p.status, scheduled_date: p.scheduled_date,
+        caption: brief.caption || null, asset_id: asset.id, content_type: asset.content_type,
+      } : null;
+    }).filter(Boolean);
+  res.json({ success: true, business_name: intake.business_name, items });
+});
+
+// Customer-reachable signed media (gallery previews) — same view guard.
+app.get('/api/intake/:id/media/:assetId', async (req, res) => {
+  const intake = intakes.byId(req.params.id);
+  if (!intake) return res.status(404).json({ success: false, error: 'not found' });
+  if (!canViewIntake(req, intake)) return res.status(403).json({ success: false, error: 'forbidden' });
+  const asset = mediaAssets.byId(parseInt(req.params.assetId, 10));
+  if (!asset || asset.tenant_slug !== intake.tenant_slug || asset.status !== 'active') {
+    return res.status(404).json({ success: false, error: 'not found' });
+  }
+  res.redirect(302, await storage.signedGet(asset.tenant_slug, asset.r2_key, 600));
+});
+
+app.get('/api/intake/:id/download.zip', async (req, res) => {
+  const intake = intakes.byId(req.params.id);
+  if (!intake) return res.status(404).json({ success: false, error: 'not found' });
+  if (!canViewIntake(req, intake)) return res.status(403).json({ success: false, error: 'forbidden' });
+  const finals = { reel: 'reel', post: 'post_final' };
+  const entries = [];
+  for (const p of pieces.byIntake(intake.id).filter((x) => ['ready', 'approved'].includes(x.status))) {
+    const asset = mediaAssets.byRef('piece', p.id).find((a) => a.kind === finals[p.kind]);
+    if (asset) entries.push({ piece: p, asset });
+  }
+  if (!entries.length) return res.status(404).json({ success: false, error: 'nothing ready to download yet' });
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="phantom-${intake.tenant_slug}.zip"`);
+  const zip = archiver('zip', { zlib: { level: 1 } });   // media is pre-compressed
+  zip.on('error', (err) => { logEvent({ level: 'error', event: 'zip.error', message: err.message }); try { res.destroy(); } catch {} });
+  zip.pipe(res);
+  const localRoot = path.join(__dirname, 'data', 'media');
+  for (const { piece, asset } of entries) {
+    const ext = asset.content_type === 'video/mp4' ? 'mp4' : 'png';
+    const name = `${piece.scheduled_date}_${piece.kind}_${piece.id}.${ext}`;
+    if (storage.backend === 'local') {
+      zip.file(path.join(localRoot, asset.r2_key), { name });
+    } else {
+      const url = await storage.signedGet(asset.tenant_slug, asset.r2_key, 600);
+      const r = await fetch(url);
+      zip.append(Buffer.from(await r.arrayBuffer()), { name });
+    }
+  }
+  events.record({ tenantSlug: intake.tenant_slug, name: 'gallery.zip_downloaded', props: { intakeId: intake.id, files: entries.length } });
+  await zip.finalize();
+});
+
+// ── promote-to-prod import pair (Phase 8) — receives a local bundle + files ──
+app.post('/api/admin/import/tenant', requireAdmin, express.json({ limit: '50mb' }), (req, res) => {
+  try {
+    res.json({ success: true, ...importTenantBundle(req.body) });
+  } catch (err) {
+    res.status(err.status || 400).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/admin/import/media', requireAdmin,
+  express.raw({ type: '*/*', limit: '200mb' }),
+  async (req, res) => {
+    try {
+      const key = String(req.query.key || '');
+      const m = key.match(/^tenants\/([a-z0-9_-]+)\//);
+      if (!m) return res.status(400).json({ success: false, error: 'key must be tenant-prefixed' });
+      if (!req.body?.length) return res.status(400).json({ success: false, error: 'empty body' });
+      await storage.put(m[1], key, req.body, req.get('content-type') || 'application/octet-stream');
+      res.json({ success: true, key, bytes: req.body.length });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
 
 // ── deploy + tracker (Phase 7) ────────────────────────────────────────────────
 app.post('/api/admin/intake/:id/connect', requireAdmin, async (req, res) => {

@@ -15,7 +15,7 @@
 // first; piece insertion is one transaction at the very end — a mid-run crash
 // retries into a clean rebuild, never a half-calendar.
 
-import { intakes, tenants, phantoms, campaigns, pieces, events } from '../db.js';
+import { intakes, tenants, phantoms, campaigns, pieces, events, deployments } from '../db.js';
 import { storage } from '../storage.js';
 import { logEvent } from '../logs.js';
 import { llm } from '../llm.js';
@@ -101,6 +101,11 @@ export async function runScriptGen({ intakeId, reels = null, posts = null, regen
   if (pieces.byIntake(intakeId).length > 0 && !regenerate) {
     logEvent({ event: 'scriptgen.skipped_existing', tenantSlug: slug, refId: intakeId, message: 'pieces already exist — pass regenerate to rebuild' });
     return { ok: true, skipped: 'existing production' };
+  }
+  // published content is a RECORD: once any piece deployed, a full wipe/rebuild is
+  // refused (would orphan the deployment history). Per-piece QC regen stays open.
+  if (deployments.byIntake(intakeId).length > 0) {
+    throw new Error('intake has deployments — full regenerate is blocked; use per-piece QC regeneration instead');
   }
   // proceeding → always rebuild clean (also covers mid-run crash retries)
   pieces.deleteByIntake(intakeId);
@@ -250,6 +255,14 @@ post brief: { "kind":"post", "post_prompt": string (image prompt: phantom + prod
 
   events.record({ tenantSlug: slug, name: 'scriptgen.completed', props: { intakeId, reels: R, posts: P, campaigns: N, llmCalls: calls } });
   logEvent({ event: 'scriptgen.completed', tenantSlug: slug, refId: intakeId, message: `${N} campaigns → ${R} reels + ${P} posts over ${dates.length} days (${calls} LLM calls)` });
+  // Launch wiring: MEDIA_AUTOGEN=1 chains straight into media generation (the
+  // BPMN's hands-free flow). Default OFF — operator clicks Generate with the
+  // cost estimate in front of them (v1 spend lesson).
+  if (process.env.MEDIA_AUTOGEN === '1') {
+    const { generateMedia } = await import('../media/render.js');
+    const kicked = generateMedia({ intakeId });
+    logEvent({ event: 'media.autogen', tenantSlug: slug, refId: intakeId, message: JSON.stringify(kicked) });
+  }
   return { ok: true, reels: R, posts: P, campaigns: N, llmCalls: calls };
 }
 

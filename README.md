@@ -96,5 +96,11 @@ scheduled→published sync, month-end report (winners, narrative, performance
 rules) feeding `<brand_learnings>` alongside QC — plus the upgrade-offer email
 when a brand outgrows its plan.
 
-Next: Phase 8 (final) — local claude_code e2e, promote-to-prod, journey
-dashboard, gallery/ZIP. Post-build operator checklist: `docs/PLAN.md`.
+Phase 8 (Local mode + delivery) ✅ — **all 8 phases complete.** `claude_code`
+mode verified with a real local-CLI call ($0 API — the pipeline runs on the Max
+plan); promote-to-prod (export bundle → import with id remap → media upload);
+journey funnel dashboard; customer gallery + ZIP delivery; `MEDIA_AUTOGEN=1`
+hands-free launch wiring (60/60 pieces, zero clicks, verified live).
+
+**The build is done.** What remains is the post-build operator checklist in
+`docs/PLAN.md` — Fal setup first, then keys/OAuth/Stripe/Fly/audio/Remotion/domain.

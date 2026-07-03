@@ -438,6 +438,73 @@ check('tracker performance rules feed brand learnings', performanceRules(tenant.
 await new Promise((r) => setTimeout(r, 1200)); // email lane drains
 check('month-end email fired (mock)', events.countsSince(0).some((e) => e.name === 'email.sent' || e.name === 'email.skipped_no_recipient'));
 
+// ── Phase 8: funnel math, gallery/zip data, MEDIA_AUTOGEN, promote bundle ────
+// funnel: 3 sessions land, 2 submit, 1 pays
+for (const [sess, stages] of Object.entries({
+  s1: ['page.index', 'intake.submitted', 'funnel.paid'],
+  s2: ['page.index', 'intake.submitted'],
+  s3: ['page.index'],
+})) for (const name of stages) events.record({ sessionKey: sess, name });
+const funnelRows = events.funnel(['page.index', 'intake.submitted', 'funnel.paid'], 0);
+check('funnel: distinct sessions per stage (3→2→1)',
+  funnelRows[0].sessions === 3 && funnelRows[1].sessions === 2 && funnelRows[2].sessions === 1);
+
+// deployed intakes refuse full regenerate (published content is a record)
+let regenBlocked = false;
+try { await runScriptGen({ intakeId: intake.id, reels: 1, posts: 1, regenerate: true }); }
+catch (e) { regenBlocked = /deployments — full regenerate is blocked/.test(e.message); }
+check('full regenerate blocked once content deployed (per-piece QC regen stays open)', regenBlocked);
+
+// MEDIA_AUTOGEN on a FRESH intake: scriptgen chains straight into render jobs
+const fresh = startIntake({ businessName: 'Autogen Co', website: 'autogen.example' });
+for (let i = 0; i < 20 && !intakes.byId(fresh.intake.id).scrape_key; i++) await new Promise((r) => setTimeout(r, 800));
+process.env.MEDIA_AUTOGEN = '1';
+await runScriptGen({ intakeId: fresh.intake.id, reels: 1, posts: 1 });
+delete process.env.MEDIA_AUTOGEN;
+let agPieces = pieces.byIntake(fresh.intake.id);
+for (let i = 0; i < 30 && (agPieces.length < 2 || agPieces.some((p) => p.status !== 'ready')); i++) {
+  await new Promise((r) => setTimeout(r, 1000));
+  agPieces = pieces.byIntake(fresh.intake.id);
+}
+check('MEDIA_AUTOGEN chains scriptgen → render without a click',
+  agPieces.length === 2 && agPieces.every((p) => p.status === 'ready'));
+for (const p of agPieces) applyVerdict({ pieceId: p.id, verdict: 'approve' });
+await new Promise((r) => setTimeout(r, 2500)); // assembly/compose finals land
+
+// gallery data shape (finals present for approved pieces)
+const galleryFinals = agPieces.map((p) => mediaAssets.byRef('piece', p.id)
+  .find((a) => a.kind === (p.kind === 'reel' ? 'reel' : 'post_final'))).filter(Boolean);
+check('gallery finals exist for approved pieces', galleryFinals.length === 2);
+
+// promote: export the RICH tenant → import into the same scratch db under a new slug (id remap proof)
+const { exportTenantBundle, importTenantBundle } = await import('../lib/promote.js');
+const bundle = exportTenantBundle(tenant.slug);
+check('export bundle complete (tenant/pieces/media/qc)',
+  bundle.tenant.slug === tenant.slug && bundle.pieces.length === 4
+  && bundle.media_assets.length > 0 && bundle.qc_verdicts.length > 0 && bundle.phantoms.length === 6);
+const cloned = JSON.parse(JSON.stringify(bundle));
+cloned.tenant.slug = 'promoted-clone-x1y2';
+for (const arr of ['intakes', 'phantoms', 'campaigns', 'pieces', 'qc_verdicts', 'media_assets']) {
+  for (const r of cloned[arr]) {
+    r.tenant_slug = 'promoted-clone-x1y2';
+    if (r.r2_key) r.r2_key = r.r2_key.replace(`tenants/${tenant.slug}/`, 'tenants/promoted-clone-x1y2/');
+    if (r.scrape_key) r.scrape_key = null;
+    if (r.id && arr === 'intakes') r.id = 'clone-' + r.id;
+    if (r.intake_id) r.intake_id = 'clone-' + r.intake_id;
+  }
+}
+const imported = importTenantBundle(cloned);
+check('import remaps ids + returns media manifest',
+  imported.slug === 'promoted-clone-x1y2' && imported.counts.pieces === 4
+  && imported.counts.phantoms === 6 && imported.media_manifest.length === cloned.media_assets.length);
+const clonePieces = pieces.byIntake('clone-' + intake.id);
+check('imported pieces re-linked to remapped campaigns/phantoms',
+  clonePieces.length === 4 && clonePieces.every((p) => p.campaign_id > 0 && p.phantom_id > 0)
+  && clonePieces[0].campaign_id !== bundle.pieces[0].campaign_id);
+let dupBlocked = false;
+try { importTenantBundle(cloned); } catch (e) { dupBlocked = e.status === 409; }
+check('re-import of existing slug → 409', dupBlocked);
+
 // REAL ffmpeg onset detection on a synthetic track: quiet base + 3 loud bursts.
 if (await ffmpegAvailable()) {
   const { spawn } = await import('child_process');
@@ -465,7 +532,7 @@ delete process.env.STRIPE_WEBHOOK_SECRET;
 check('webhook bad signature rejected when secret set', sigBad.ok === false);
 
 flushLogs();
-check('billing halt logged', recentLogs({ limit: 100 }).some((l) => l.event === 'jobs.billing_halt'));
+check('billing halt logged', recentLogs({ limit: 500 }).some((l) => l.event === 'jobs.billing_halt'));
 
 jobs.stop();
 console.log(failures === 0 ? '\n[smoke] ALL PASS ✅' : `\n[smoke] ${failures} FAILURE(S) ❌`);

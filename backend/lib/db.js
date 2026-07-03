@@ -220,6 +220,14 @@ export const events = {
   recent(limit = 100) { return _eventRecent.all(Math.min(limit, 500)); },
   bySession(sessionKey) { return _eventBySession.all(sessionKey); },
   countsSince(epochSec) { return _eventCounts.all(epochSec); },
+  // Funnel: distinct sessions that reached each named stage since epoch.
+  funnel(stageNames, epochSec) {
+    const q = db.prepare(`
+      SELECT COUNT(DISTINCT session_key) AS sessions FROM events
+       WHERE name = ? AND ts >= ? AND session_key IS NOT NULL
+    `);
+    return stageNames.map((name) => ({ stage: name, sessions: q.get(name, epochSec).sessions }));
+  },
 };
 
 // ── jobs (queue storage — worker logic lives in lib/jobs.js) ─────────────────
