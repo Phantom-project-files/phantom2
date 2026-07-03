@@ -52,6 +52,18 @@
   <div class="card card-pad panel"><h2>Campaigns</h2><div id="campaigns"></div></div>
   <div class="card card-pad panel"><h2>Coverage <span id="covBadge"></span></h2><div id="coverage" class="dim" style="font-size:.8rem">loading…</div></div>
   <div class="card card-pad panel"><h2>Deployment calendar</h2><div class="cal" id="calendar"></div></div>
+  <div class="card card-pad panel">
+    <h2>Deploy <span id="connBadge"></span></h2>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+      <button class="btn" id="connectBtn" style="height:36px">Connect socials</button>
+      <button class="btn btn-primary" id="deployBtn" style="height:36px">Deploy approved → calendar</button>
+      <button class="btn" id="monthEndBtn" style="height:36px">Run month-end report</button>
+      <span id="deployMsg" class="dim" style="font-size:.78rem"></span>
+    </div>
+    <div id="deployList" class="dim" style="font-size:.78rem; margin-top:10px"></div>
+    <div id="reportBox" class="dim" style="font-size:.8rem; margin-top:10px"></div>
+  </div>
+
   <div class="card card-pad panel"><h2>Pieces</h2><div style="overflow-x:auto" id="pieces"></div></div>
 </main>
 
@@ -155,6 +167,52 @@ async function render() {
   }
 }
 
+async function loadDeploy() {
+  const d = await fetch('/api/admin/intake/' + encodeURIComponent(intakeId) + '/deployments', { credentials: 'same-origin' }).then((r) => r.json());
+  if (!d.success) return;
+  document.getElementById('connBadge').innerHTML = d.connection
+    ? '<span class="tag" style="color:#36e2c4">' + esc(d.connection.status) + (d.connection.platforms ? ' · ' + JSON.parse(d.connection.platforms).join(', ') : '') + '</span>'
+    : '<span class="tag">not connected</span>';
+  document.getElementById('deployList').innerHTML = d.deployments.length
+    ? d.deployments.slice(0, 12).map((x) => 'piece ' + x.piece_id + ' → ' + x.platforms.join('+') + ' · ' + esc(x.status) + (x.scheduled_at ? ' @ ' + esc(String(x.scheduled_at).slice(0, 10)) : '')).join('<br>')
+    : 'no deployments yet';
+  const rep = await fetch('/api/admin/tenant/' + encodeURIComponent(d.connection ? d.connection.tenant_slug : '') + '/report/latest', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => null);
+  if (rep && rep.report) {
+    const s = rep.report.summary;
+    document.getElementById('reportBox').innerHTML = '<strong style="color:#fff">' + esc(rep.report.period) + ' report</strong> — '
+      + s.deployed_pieces + ' pieces · engagement ' + (s.totals ? s.totals.engagement : 0)
+      + (s.narrative ? '<br>' + esc(s.narrative) : '')
+      + (s.upsell ? '<br><span style="color:#ffb454">⤴ upgrade suggested → ' + esc(s.upsell.to) + '</span>' : '');
+  }
+}
+
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  const r = await fetch('/api/admin/intake/' + encodeURIComponent(intakeId) + '/connect', { method: 'POST', credentials: 'same-origin' }).then((x) => x.json());
+  document.getElementById('deployMsg').textContent = r.success ? 'connect link: ' + r.connect_url : 'error: ' + r.error;
+  loadDeploy();
+});
+document.getElementById('deployBtn').addEventListener('click', async () => {
+  if (!confirm('Deploy every APPROVED piece to its calendar day?')) return;
+  const r = await fetch('/api/admin/intake/' + encodeURIComponent(intakeId) + '/deploy', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: '{}',
+  }).then((x) => x.json());
+  document.getElementById('deployMsg').textContent = r.success
+    ? 'queued ' + r.queued + ' (unapproved skipped: ' + r.skipped_unapproved + ')' : 'error: ' + r.error;
+  setTimeout(loadDeploy, 1200);
+});
+document.getElementById('monthEndBtn').addEventListener('click', async () => {
+  const d = await fetch('/api/admin/intake/' + encodeURIComponent(intakeId) + '/deployments', { credentials: 'same-origin' }).then((r) => r.json());
+  if (!d.connection) { document.getElementById('deployMsg').textContent = 'connect socials first'; return; }
+  await fetch('/api/admin/tenant/' + encodeURIComponent(d.connection.tenant_slug) + '/track', { method: 'POST', credentials: 'same-origin' });
+  setTimeout(async () => {
+    const r = await fetch('/api/admin/tenant/' + encodeURIComponent(d.connection.tenant_slug) + '/month-end', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: '{}',
+    }).then((x) => x.json());
+    document.getElementById('deployMsg').textContent = r.success ? 'report generated' : 'error: ' + r.error;
+    loadDeploy();
+  }, 2000);
+});
+
 window.qcPiece = async (id, verdict) => {
   let reason_text = null, reason_tags = null;
   if (verdict === 'reject') {
@@ -172,6 +230,7 @@ window.qcPiece = async (id, verdict) => {
 };
 render();
 loadEstimate();
+loadDeploy();
 </script>
 
 </body>

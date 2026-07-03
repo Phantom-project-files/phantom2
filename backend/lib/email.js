@@ -32,6 +32,14 @@ export const TEMPLATES = {
     subject: `Payment confirmed — ${businessName} is in production`,
     text: `Your ${plan} plan is active. The phantoms are being cast and your first content batch is in the works. You'll review everything before it ships.`,
   }),
+  month_end_report: ({ businessName, period }) => ({
+    subject: `${businessName} — your ${period} content report`,
+    text: `The month's numbers are in: what ran, what won, and what next month's batch will do differently because of it. Open your dashboard for the full report.`,
+  }),
+  upgrade_offer: ({ businessName, to }) => ({
+    subject: `${businessName} is outgrowing its plan`,
+    text: `Your content is earning real engagement and you're at your plan's volume ceiling. ${to ? `The ${to} tier` : 'The next tier'} puts more shots on goal — reply and we'll switch you over.`,
+  }),
 };
 
 // Queue an email. Resolves the recipient from the intake's claimed user at SEND

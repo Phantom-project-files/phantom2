@@ -67,9 +67,19 @@ Return ONLY JSON: { "bullets": [string] }`,
   }
 }
 
-// The block script-gen injects. Empty string when there's no history yet.
+// The block script-gen injects: QC rules + the tracker's month-end performance
+// rules (Phase 7) — what the operator rejected AND what the audience rewarded.
 export async function brandLearningsBlock(tenantSlug) {
   const bullets = await summarizeLearnings(tenantSlug);
-  if (!bullets.length) return '';
-  return `\n<brand_learnings>\nOperator QC history for this brand — every new piece MUST respect these:\n${bullets.map((b) => `- ${b}`).join('\n')}\n</brand_learnings>\n`;
+  let perf = [];
+  try {
+    const { performanceRules } = await import('./tracker/index.js');
+    perf = performanceRules(tenantSlug);
+  } catch { /* tracker optional at import time */ }
+  if (!bullets.length && !perf.length) return '';
+  const lines = [
+    ...bullets.map((b) => `- ${b}`),
+    ...perf.map((b) => `- [performance] ${b}`),
+  ];
+  return `\n<brand_learnings>\nQC + month-end performance history for this brand — every new piece MUST respect these:\n${lines.join('\n')}\n</brand_learnings>\n`;
 }

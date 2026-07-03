@@ -249,11 +249,41 @@
   rollup/cache/block; scriptgen learnings pass; coverage shape). **Live HTTP:** reject → regen
   1/3 → re-ready in ~10s w/ feedback stored; learnings endpoint returns bullets + tag counts.
 
+## Phase 7 — Deploy + tracker BUILT + VERIFIED (same session) → v0.8.0
+- **Migration 007:** `social_connections` (one Ayrshare Profile-Key per tenant),
+  `deployments` (piece × platforms × scheduled_at × ayrshare_post_id × status),
+  `metrics` (per-platform snapshots), `reports` (tenant × period unique).
+- **`lib/deploy/ayrshare.js`** — v1 adapter surface slimmed: createProfile / connectUrl (hosted
+  JWT link the customer uses to link IG/TikTok/YT) / linkedPlatforms / publishPost (scheduleDate —
+  **Ayrshare fires the timed post, no cron here**) / postAnalytics. `AYRSHARE_MODE=mock` default
+  (deterministic ids + seeded analytics). Billing-class errors classify → jobs breaker.
+- **`lib/deploy/index.js`** — `connectTenant()`; `deploySchedule()` = **only status='approved'
+  pieces deploy** (QC is the gate — v1's unreviewed-spend surprise inverted), tier-gated
+  (**Standard = no auto-deploy → gallery/ZIP path**), idempotent (active deployments skipped);
+  `deploy_piece` job posts the final asset (2h signed URL) captioned from the brief, scheduled at
+  piece.scheduled_date 10:00Z.
+- **`lib/tracker/index.js`** — `track_metrics` job (analytics succeeding on a *scheduled* post ⇒
+  implicit scheduled→published sync, no separate status poll); `runMonthEndReport()`: per-piece
+  engagement (likes+2·comments+3·shares) → winners/losers w/ campaign+pillar context → Haiku
+  narrative + ≤4 **performance_rules** → reports row + `month_end_report` email + **`upgrade_offer`
+  email** when volume ceiling + real traction (BPMN's exclusive-upgrade node).
+- **Learnings loop CLOSED both ways:** `brandLearningsBlock` now merges QC bullets + the latest
+  report's `[performance]` rules — next month's briefs know what the operator rejected AND what
+  the audience rewarded.
+- **Console:** production.html Deploy panel — Connect socials (shows link + linked platforms),
+  "Deploy approved → calendar", deployments list, "Run month-end report" + report box w/ narrative
+  + upsell banner. Endpoints: intake/:id/connect · /deploy · /deployments; tenant/:slug/track ·
+  /month-end · /report/latest.
+- **Verified:** smoke **89/89 PASS** (standard-tier deploy refusal; mock profile+connect URL;
+  4 approved pieces → 4 scheduled deployments w/ ayrshare ids; re-deploy idempotent; metrics 4
+  rows + implicit publish sync; month-end winners/narrative/rules; report persisted; performance
+  rules inside `<brand_learnings>`; report email fired). Boot sanity clean.
+
 ## Next session
-1. **Phase 7 — Deploy + tracker:** Ayrshare adapters (v1 port), calendar-driven publish,
-   month-end tracker → report → learnings → upgrade offers.
-2. **Phase 8 — local claude_code e2e + promote-to-prod sync + journey dashboards + gallery/ZIP.**
-3. Then: the post-build operator checklist (docs/PLAN.md) — Fal setup first.
+1. **Phase 8 (final build phase):** local claude_code e2e run-through, promote-to-prod sync
+   (local/ R2 namespace → prod), journey funnel dashboard, customer gallery + ZIP download
+   (Standard-tier delivery), `MEDIA_AUTOGEN` launch wiring.
+2. Then: the post-build operator checklist (docs/PLAN.md) — Fal setup first.
 
 ## Runbook
 ```bash

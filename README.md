@@ -89,5 +89,12 @@ prompt (hard cap: 3 regens/piece), append-only verdict store rolls into
 deterministic coverage report (counts/pillars/phantom-usage/QC funnel → green),
 console QC buttons + coverage badge. Dependency waits retry in 5s not 30s.
 
-Next: Phase 7 — Deploy + tracker (Ayrshare, calendar publish, month-end loop).
-Post-build operator checklist (Fal setup, keys, OAuth creds…): `docs/PLAN.md`.
+Phase 7 (Deploy + tracker) ✅ — Ayrshare per-tenant profiles + hosted social
+linking, calendar-driven publishing (approved pieces only — QC is the gate;
+Standard tier routes to gallery/ZIP instead), metrics snapshots with implicit
+scheduled→published sync, month-end report (winners, narrative, performance
+rules) feeding `<brand_learnings>` alongside QC — plus the upgrade-offer email
+when a brand outgrows its plan.
+
+Next: Phase 8 (final) — local claude_code e2e, promote-to-prod, journey
+dashboard, gallery/ZIP. Post-build operator checklist: `docs/PLAN.md`.

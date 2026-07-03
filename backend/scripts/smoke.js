@@ -381,6 +381,63 @@ check('coverage report (pillars/phantoms/qc buckets + custom-build detection)',
   cov.counts.reels === 2 && cov.counts.custom_build === true
   && cov.pillars.length === 4 && cov.phantoms.cast === 6 && typeof cov.green === 'boolean');
 
+// ── Phase 7: deploy + tracker — connect → calendar deploy → metrics → report ─
+process.env.AYRSHARE_MODE = 'mock';
+const { connectTenant, deploySchedule, registerDeployJobs } = await import('../lib/deploy/index.js');
+const { registerTrackerJobs, runMonthEndReport, performanceRules } = await import('../lib/tracker/index.js');
+const { deployments, metrics: metricsStore, reports } = await import('../lib/db.js');
+registerDeployJobs();
+registerTrackerJobs();
+
+// current intake state: 2 reels + 2 posts from the learnings-regenerate batch — render + approve them
+generateMedia({ intakeId: intake.id });
+let p7pieces = pieces.byIntake(intake.id);
+for (let i = 0; i < 30 && p7pieces.some((p) => p.status !== 'ready'); i++) {
+  await new Promise((r) => setTimeout(r, 1000));
+  p7pieces = pieces.byIntake(intake.id);
+}
+for (const p of p7pieces) applyVerdict({ pieceId: p.id, verdict: 'approve' });
+
+// standard tier must refuse auto-deploy (gallery/ZIP only)
+intakes.patch(intake.id, { plan: 'standard' });
+let standardBlocked = false;
+try { deploySchedule({ intakeId: intake.id }); } catch (e) { standardBlocked = /no auto-deploy/.test(e.message); }
+check('standard tier blocked from auto-deploy (gallery-only)', standardBlocked);
+intakes.patch(intake.id, { plan: 'premium' });
+
+const conn = await connectTenant(tenant.slug);
+check('ayrshare profile + connect URL (mock)', conn.connection.ayrshare_profile_key.startsWith('mock-profile-') && conn.connect_url.includes('connect'));
+
+const dep = deploySchedule({ intakeId: intake.id });
+check(`deploy queued for all approved pieces (${dep.queued})`, dep.queued === 4);
+let depRows = [];
+for (let i = 0; i < 15; i++) {
+  await new Promise((r) => setTimeout(r, 1000));
+  depRows = deployments.byIntake(intake.id);
+  if (depRows.length === 4) break;
+}
+check('deployments created with ayrshare ids + calendar dates', depRows.length === 4
+  && depRows.every((d) => d.ayrshare_post_id?.startsWith('mock-post-') && d.status === 'scheduled' && d.scheduled_at));
+check('re-deploy is idempotent (active deployments skipped)', deploySchedule({ intakeId: intake.id }).queued === 0);
+
+// tracker: analytics success on a scheduled post ⇒ implicit publish + metric rows
+jobs.enqueue({ kind: 'track_metrics', tenantSlug: tenant.slug, payload: { tenantSlug: tenant.slug } });
+await new Promise((r) => setTimeout(r, 2000));
+const capturedMetrics = metricsStore.byTenantSince(tenant.slug, 0);
+check(`metrics captured (${capturedMetrics.length} rows) + scheduled→published sync`,
+  capturedMetrics.length === 4 && deployments.byTenantStatus(tenant.slug, 'published').length === 4);
+
+const monthEnd = await runMonthEndReport({ tenantSlug: tenant.slug });
+check('month-end report (winners + narrative + performance rules)',
+  monthEnd.report.deployed_pieces === 4 && monthEnd.report.winners.length >= 1
+  && !!monthEnd.report.narrative && monthEnd.report.performance_rules.length >= 1);
+check('report persisted + queryable', !!reports.latest(tenant.slug));
+check('tracker performance rules feed brand learnings', performanceRules(tenant.slug).length >= 1
+  && (await brandLearningsBlock(tenant.slug)).includes('[performance]'));
+
+await new Promise((r) => setTimeout(r, 1200)); // email lane drains
+check('month-end email fired (mock)', events.countsSince(0).some((e) => e.name === 'email.sent' || e.name === 'email.skipped_no_recipient'));
+
 // REAL ffmpeg onset detection on a synthetic track: quiet base + 3 loud bursts.
 if (await ffmpegAvailable()) {
   const { spawn } = await import('child_process');

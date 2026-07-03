@@ -568,6 +568,72 @@ export const qcLearningsCache = {
   set(slug, verdictCount, bullets) { _qcCacheSet.run(slug, verdictCount, JSON.stringify(bullets)); },
 };
 
+// ── deploy + tracker (Phase 7) ────────────────────────────────────────────────
+const _connUpsert = db.prepare(`
+  INSERT INTO social_connections (tenant_slug, ayrshare_profile_key, platforms, status)
+  VALUES (@tenant_slug, @key, @platforms, @status)
+  ON CONFLICT(tenant_slug) DO UPDATE SET platforms = COALESCE(excluded.platforms, platforms),
+    status = excluded.status
+`);
+const _connGet = db.prepare('SELECT * FROM social_connections WHERE tenant_slug = ?');
+export const socialConnections = {
+  upsert({ tenantSlug, profileKey, platforms = null, status = 'created' }) {
+    _connUpsert.run({ tenant_slug: tenantSlug, key: profileKey, platforms: platforms ? JSON.stringify(platforms) : null, status });
+    return _connGet.get(tenantSlug);
+  },
+  get(slug) { return _connGet.get(slug) || null; },
+};
+
+const _depInsert = db.prepare(`
+  INSERT INTO deployments (tenant_slug, intake_id, piece_id, platforms, scheduled_at, status, ayrshare_post_id, error)
+  VALUES (@tenant_slug, @intake_id, @piece_id, @platforms, @scheduled_at, @status, @post_id, @error)
+`);
+const _depByIntake = db.prepare('SELECT * FROM deployments WHERE intake_id = ? ORDER BY id DESC');
+const _depByTenantStatus = db.prepare('SELECT * FROM deployments WHERE tenant_slug = ? AND status = ? ORDER BY id');
+const _depById = db.prepare('SELECT * FROM deployments WHERE id = ?');
+const _depByPiece = db.prepare("SELECT * FROM deployments WHERE piece_id = ? AND status IN ('scheduled','published') ORDER BY id DESC LIMIT 1");
+const _depMark = db.prepare(`
+  UPDATE deployments SET status = @status, error = COALESCE(@error, error),
+    published_at = CASE WHEN @status = 'published' THEN strftime('%s','now') ELSE published_at END
+  WHERE id = @id
+`);
+export const deployments = {
+  create({ tenantSlug, intakeId = null, pieceId, platforms, scheduledAt = null, status = 'scheduled', postId = null, error = null }) {
+    const r = _depInsert.run({ tenant_slug: tenantSlug, intake_id: intakeId, piece_id: pieceId, platforms: JSON.stringify(platforms), scheduled_at: scheduledAt, status, post_id: postId, error });
+    return r.lastInsertRowid;
+  },
+  byIntake(intakeId) { return _depByIntake.all(intakeId); },
+  byTenantStatus(slug, status) { return _depByTenantStatus.all(slug, status); },
+  byId(id) { return _depById.get(id) || null; },
+  activeByPiece(pieceId) { return _depByPiece.get(pieceId) || null; },
+  mark(id, status, error = null) { _depMark.run({ id, status, error }); },
+};
+
+const _metricInsert = db.prepare(`
+  INSERT INTO metrics (tenant_slug, deployment_id, piece_id, platform, views, likes, comments, shares, meta)
+  VALUES (@tenant_slug, @deployment_id, @piece_id, @platform, @views, @likes, @comments, @shares, @meta)
+`);
+const _metricsByTenantSince = db.prepare('SELECT * FROM metrics WHERE tenant_slug = ? AND captured_at >= ? ORDER BY id');
+export const metrics = {
+  record({ tenantSlug, deploymentId = null, pieceId = null, platform = null, views = null, likes = null, comments = null, shares = null, meta = null }) {
+    _metricInsert.run({ tenant_slug: tenantSlug, deployment_id: deploymentId, piece_id: pieceId, platform, views, likes, comments, shares, meta: meta ? JSON.stringify(meta) : null });
+  },
+  byTenantSince(slug, epoch) { return _metricsByTenantSince.all(slug, epoch); },
+};
+
+const _reportUpsert = db.prepare(`
+  INSERT INTO reports (tenant_slug, intake_id, period, summary) VALUES (?, ?, ?, ?)
+  ON CONFLICT(tenant_slug, period) DO UPDATE SET summary = excluded.summary,
+    created_at = strftime('%s','now')
+`);
+const _reportGet = db.prepare('SELECT * FROM reports WHERE tenant_slug = ? AND period = ?');
+const _reportLatest = db.prepare('SELECT * FROM reports WHERE tenant_slug = ? ORDER BY period DESC LIMIT 1');
+export const reports = {
+  upsert(slug, intakeId, period, summary) { _reportUpsert.run(slug, intakeId, period, JSON.stringify(summary)); return _reportGet.get(slug, period); },
+  get(slug, period) { return _reportGet.get(slug, period) || null; },
+  latest(slug) { return _reportLatest.get(slug) || null; },
+};
+
 // ── audio_tracks ──────────────────────────────────────────────────────────────
 const _trackInsert = db.prepare(`
   INSERT INTO audio_tracks (title, artist, source, license_note, r2_key, duration_sec, bpm, vibe_tags)

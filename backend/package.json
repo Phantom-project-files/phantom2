@@ -1,6 +1,6 @@
 {
   "name": "phantom2-backend",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Phantom 2.0 — done-for-you AI social content SaaS (BPMN rebuild: scrape → value prop → pay → campaigns → phantoms → reels/posts → QC → calendar → deploy → tracker)",
   "type": "module",
   "main": "server.js",

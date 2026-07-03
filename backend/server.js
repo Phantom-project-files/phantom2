@@ -33,6 +33,9 @@ import { ffmpegAvailable } from './lib/edit/audio.js';
 import { applyVerdict, phantomVerdict, REASON_TAGS, REGEN_CAP } from './lib/qc.js';
 import { coverageReport } from './lib/coverage.js';
 import { rollup as qcRollup, summarizeLearnings } from './lib/qc-learnings.js';
+import { connectTenant, deploySchedule, registerDeployJobs } from './lib/deploy/index.js';
+import { registerTrackerJobs, runMonthEndReport } from './lib/tracker/index.js';
+import { deployments, reports, socialConnections } from './lib/db.js';
 import { registerValuePropJobs } from './lib/valueprop.js';
 import { registerEmailJobs } from './lib/email.js';
 import { createCheckout, markIntakePaid, verifyStripeSignature, handleStripeEvent, paymentsMode } from './lib/payments.js';
@@ -378,6 +381,54 @@ app.get('/api/admin/tenant/:slug/learnings', requireAdmin, async (req, res) => {
   res.json({ success: true, rollup: qcRollup(req.params.slug), bullets: await summarizeLearnings(req.params.slug) });
 });
 
+// ── deploy + tracker (Phase 7) ────────────────────────────────────────────────
+app.post('/api/admin/intake/:id/connect', requireAdmin, async (req, res) => {
+  try {
+    const intake = intakes.byId(req.params.id);
+    if (!intake) return res.status(404).json({ success: false, error: 'not found' });
+    res.json({ success: true, ...(await connectTenant(intake.tenant_slug)) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/intake/:id/deploy', requireAdmin, (req, res) => {
+  try {
+    const { platforms = null, piece_ids = null } = req.body || {};
+    res.json({ success: true, ...deploySchedule({ intakeId: req.params.id, platforms, pieceIds: piece_ids }) });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/intake/:id/deployments', requireAdmin, (req, res) => {
+  const intake = intakes.byId(req.params.id);
+  if (!intake) return res.status(404).json({ success: false, error: 'not found' });
+  res.json({
+    success: true,
+    connection: socialConnections.get(intake.tenant_slug),
+    deployments: deployments.byIntake(intake.id).map((d) => ({ ...d, platforms: JSON.parse(d.platforms) })),
+  });
+});
+
+app.post('/api/admin/tenant/:slug/track', requireAdmin, (req, res) => {
+  const jobId = jobsWorker.enqueue({ kind: 'track_metrics', tenantSlug: req.params.slug, payload: { tenantSlug: req.params.slug }, maxAttempts: 2 });
+  res.json({ success: true, job_id: jobId });
+});
+
+app.post('/api/admin/tenant/:slug/month-end', requireAdmin, async (req, res) => {
+  try {
+    res.json({ success: true, ...(await runMonthEndReport({ tenantSlug: req.params.slug, period: req.body?.period || null })) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/tenant/:slug/report/latest', requireAdmin, (req, res) => {
+  const r = reports.latest(req.params.slug);
+  res.json({ success: true, report: r ? { ...r, summary: JSON.parse(r.summary) } : null });
+});
+
 // ── audio library (Phase 5) — the operator's rights-cleared track pool. Raw-body
 // upload (no multer dep): POST the mp3 bytes with metadata in the query string.
 app.post('/api/admin/audio', requireAdmin,
@@ -483,6 +534,8 @@ registerScriptGenJobs();
 registerMediaJobs();
 registerEditJobs();
 registerComposeJobs();
+registerDeployJobs();
+registerTrackerJobs();
 jobsWorker.start();
 setInterval(() => { try { adminSessions.purgeExpired(); } catch {} }, 3600_000).unref();
 
