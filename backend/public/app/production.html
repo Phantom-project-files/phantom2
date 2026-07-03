@@ -39,7 +39,15 @@
 </header>
 
 <main class="stage">
-  <div class="card card-pad panel"><h2 id="head">loading…</h2><div id="sub" class="dim" style="font-size:.8rem"></div></div>
+  <div class="card card-pad panel">
+    <h2 id="head">loading…</h2>
+    <div id="sub" class="dim" style="font-size:.8rem"></div>
+    <div style="display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap">
+      <button class="btn btn-primary" id="genBtn" style="height:40px">Generate media</button>
+      <span id="estimate" class="dim mono" style="font-size:.74rem">estimating…</span>
+    </div>
+    <div id="genMsg" class="dim" style="font-size:.78rem; margin-top:6px"></div>
+  </div>
   <div class="card card-pad panel"><h2>Phantoms <span class="dim" style="font-weight:400; font-size:.75rem">the 6 UGC creators</span></h2><div class="phantom-grid" id="phantoms"></div></div>
   <div class="card card-pad panel"><h2>Campaigns</h2><div id="campaigns"></div></div>
   <div class="card card-pad panel"><h2>Deployment calendar</h2><div class="cal" id="calendar"></div></div>
@@ -51,7 +59,34 @@ const intakeId = new URLSearchParams(location.search).get('intake');
 if (!intakeId) location.replace('admin.html');
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
-(async () => {
+async function loadEstimate() {
+  const r = await fetch('/api/admin/intake/' + encodeURIComponent(intakeId) + '/media-estimate', { credentials: 'same-origin' });
+  const d = await r.json();
+  if (!d.success) return;
+  const e = d.estimate;
+  document.getElementById('estimate').textContent =
+    (e.mock_mode ? '[MOCK — $0] ' : '') + e.phantoms + ' faces + ' + e.video_shots + ' shots ('
+    + e.reused_shots + ' reused) + ' + e.posts + ' post images ≈ $' + e.est_usd.toFixed(2);
+  document.getElementById('genBtn').textContent = e.mock_mode ? 'Generate media (mock)' : 'Generate media ($' + e.est_usd.toFixed(2) + ')';
+}
+
+document.getElementById('genBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('genBtn');
+  if (!confirm('Kick media generation for everything pending on this intake?')) return;
+  btn.disabled = true;
+  const r = await fetch('/api/admin/intake/' + encodeURIComponent(intakeId) + '/generate-media', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: '{}',
+  });
+  const d = await r.json();
+  document.getElementById('genMsg').textContent = d.success
+    ? 'kicked: ' + d.kicked.phantoms + ' phantoms, ' + d.kicked.reels + ' reels, ' + d.kicked.posts + ' posts — refreshing…'
+    : 'error: ' + d.error;
+  btn.disabled = false;
+  setTimeout(render, 1500);
+  setInterval(render, 8000);
+});
+
+async function render() {
   const r = await fetch('/api/admin/intake/' + encodeURIComponent(intakeId) + '/production', { credentials: 'same-origin' });
   if (r.status === 401) { location.href = '/app/admin-login.html?next=' + encodeURIComponent(location.pathname + location.search); return; }
   const d = await r.json();
@@ -63,7 +98,10 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({
     + ' · ' + (counts.reel || 0) + ' reels / ' + (counts.post || 0) + ' posts across ' + d.campaigns.length + ' campaigns';
 
   document.getElementById('phantoms').innerHTML = d.phantoms.map((p) =>
-    '<div class="phantom-card"><b>' + esc(p.name) + '</b> <span class="dim">' + (p.age || '') + '</span>'
+    '<div class="phantom-card">'
+    + (p.asset_id ? '<img src="/api/admin/media/' + p.asset_id + '/url" alt="" style="width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; margin-bottom:6px; background:rgba(255,255,255,.04)">' : '')
+    + '<b>' + esc(p.name) + '</b> <span class="dim">' + (p.age || '') + '</span>'
+    + ' <span class="tag" style="font-size:.6rem">' + esc(p.status) + '</span>'
     + '<div class="dim">' + esc(p.persona || '') + '</div>'
     + '<div class="dim" style="margin-top:4px">' + esc(p.vibe || '') + '</div>'
     + '<div class="dim" style="margin-top:4px; opacity:.7">' + esc((p.appearance_prompt || '').slice(0, 90)) + '…</div></div>').join('')
@@ -85,13 +123,17 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({
 
   const phMap = Object.fromEntries(d.phantoms.map((p) => [p.id, p.name]));
   const cMap = Object.fromEntries(d.campaigns.map((c) => [c.id, c.title]));
-  document.getElementById('pieces').innerHTML = '<table><thead><tr><th>date</th><th>kind</th><th>pillar</th><th>campaign</th><th>phantom</th><th>status</th><th>brief</th></tr></thead><tbody>'
+  document.getElementById('pieces').innerHTML = '<table><thead><tr><th>date</th><th>kind</th><th>pillar</th><th>campaign</th><th>phantom</th><th>status</th><th>media</th><th>brief</th></tr></thead><tbody>'
     + d.pieces.map((p) => '<tr><td>' + esc(p.scheduled_date) + '</td><td>' + p.kind + '</td><td>' + esc(p.pillar || '—')
       + '</td><td>' + esc(cMap[p.campaign_id] || p.campaign_id) + '</td><td>' + esc(phMap[p.phantom_id] || '—')
-      + '</td><td>' + esc(p.status) + '</td><td><details class="brief"><summary>view</summary><pre>'
+      + '</td><td>' + esc(p.status) + '</td><td>'
+      + (p.assets || []).map((a) => '<a href="/api/admin/media/' + a.id + '/url" target="_blank">' + a.kind + (a.slot != null ? a.slot : '') + '</a>').join(' · ')
+      + '</td><td><details class="brief"><summary>view</summary><pre>'
       + esc(JSON.stringify(p.brief, null, 1)) + '</pre></details></td></tr>').join('')
     + '</tbody></table>';
-})();
+}
+render();
+loadEstimate();
 </script>
 
 </body>

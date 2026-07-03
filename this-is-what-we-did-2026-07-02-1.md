@@ -158,11 +158,43 @@
 - NOTE: mock mode shows "Mock Campaign N" titles by design — flip CLAUDE_MODE=claude_code (local
   Max, $0 API) or anthropic_api for real creative through the same pipeline.
 
+## Phase 4 — Media engine BUILT + VERIFIED (same session) → v0.5.0
+- **Migration 005:** `media_assets.meta` (shots: {campaign_id, slot, source_piece_id}; keyframes;
+  phantom refs). The **shot library** = media_assets kind='shot' grouped by campaign — Phase 5's
+  beat-cut editor pulls siblings from here.
+- **`lib/media/render.js`** — job kinds `render_phantom` / `render_reel` / `render_post` / `fal_poll`:
+  - Phantom faces: appearance_prompt + v1's studio ref spec (white bg/black tee/neutral) →
+    Nano Banana → R2 → `phantoms.ref_image_key`, status → ready.
+  - Reels: frame_prompts (≤3) → keyframe (Nano Banana w/ phantom ref image) → **Seedance
+    image→video** (9:16, `FAL_VIDEO_DURATION`=6s) → shot → R2. Reel waits on its phantom via
+    retryable backoff (no page-poll stranding — v1 lesson).
+  - **Shot reuse is ORDER-based** (first reel per campaign renders all frames; siblings render hero
+    only) — the pool-based version had a TOCTOU race under concurrency that smoke caught (all reels
+    saw an empty pool at kick). Premium 30 reels × 2 frames → **40 fresh + 20 reused (33% saved)**.
+  - **`fal_poll` is the single execution path** — submit enqueues a poll carrying a continuation
+    (`ingest_phantom` | `ingest_post` | `keyframe_to_video` | `ingest_shot`); **/webhook/fal merely
+    accelerates the queued poll (run_after=0)** → webhook/poller can never double-ingest.
+  - Cost ledger per gen (`FAL_PRICE_IMAGE_USD`=.04, `FAL_PRICE_VIDEO_SEC_USD`=.125 — env-tunable
+    estimates); billing errors classify → jobs breaker halts tenant siblings.
+- **Spend safety (v1's "dashboard click billed real money" lesson):** media gen NEVER auto-fires —
+  console shows **`GET …/media-estimate`** (faces/shots/reused/posts + $ figure) and the operator
+  clicks **Generate media** (`POST …/generate-media {phantoms, reels, posts}` — partial batches OK).
+  `MEDIA_AUTOGEN=1` exists for launch. Estimate for a full premium build ≈ **$33** at list prices.
+- **Console:** production.html gains Generate button + live estimate, phantom face thumbnails,
+  per-piece media links (shot0/shot1/post) via `GET /api/admin/media/:id/url` (302 → signed URL).
+- **Verified:** smoke **56/56 PASS** ($0 mock chain: 6 faces w/ R2 keys; all pieces → ready; shot
+  library 5 fresh for 4×2 frames; webhook acceleration; spend rows). **Live HTTP premium run:**
+  estimate 40 fresh/20 reused → kick 6+30+30 → **6/6 faces, 60/60 pieces ready, 60 with media
+  assets** in ~50s through the full submit→poll→continuation chain; media redirect serves bytes.
+- ⚠️ Real-Fal input schemas (nano-banana / seedance field names) are best-guess until the first
+  funded run — pinned in one place (`lib/media/render.js` submit inputs + `lib/fal.js` MODELS).
+
 ## Next session
-1. **Phase 4 — Media engine:** Fal integration real (nano-banana phantom refs + frames, seedance
-   video), webhook-driven job advancement, shot library w/ cross-reel reuse, R2 ingest +
-   media_assets rows, per-batch cost preflight + the billing breaker in anger.
-2. Ops when ready: Fly app + R2 bucket; GOOGLE creds; STRIPE_WEBHOOK_SECRET; rotate Claude+Fal keys.
+1. **Phase 5 — Edit layer:** beat-cut editor (ffmpeg energy-flux onsets, ≤3 clips/reel, operator
+   audio library), Remotion graphics pass (logo end-card, overlays), post composer (design
+   archetypes, Pinterest-tagged). Docker image gains ffmpeg + chromium.
+2. Ops when ready: Fly app + R2 bucket; GOOGLE creds; STRIPE_WEBHOOK_SECRET; **rotate Claude+Fal
+   keys**; verify Fal input schemas on first funded generation.
 3. Later: scraper headless rung, Apify adapter, Wikipedia fallback.
 
 ## Runbook

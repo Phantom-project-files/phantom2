@@ -254,6 +254,9 @@ const _jobHaltSiblings = db.prepare(`
   UPDATE jobs SET status = 'failed', finished_at = strftime('%s','now'), error = ?
    WHERE status = 'queued' AND kind = ? AND tenant_slug IS ?
 `);
+const _jobAccelerate = db.prepare(`
+  UPDATE jobs SET run_after = 0 WHERE kind = ? AND ref_id = ? AND status = 'queued'
+`);
 
 const _claimTx = db.transaction((kind) => {
   const cand = _jobClaimCandidate.get(kind);
@@ -285,6 +288,9 @@ export const jobs = {
   haltSiblings({ kind, tenantSlug = null, reason }) {
     return _jobHaltSiblings.run(`halted: ${reason}`, kind, tenantSlug).changes;
   },
+  // Webhook accelerator: pull a scheduled poll forward to "now" (poll stays the
+  // single execution path — no race between webhook and poller).
+  accelerateByRef(kind, refId) { return _jobAccelerate.run(kind, String(refId)).changes; },
 };
 
 // ── cost_events ───────────────────────────────────────────────────────────────
@@ -315,26 +321,35 @@ export const costEvents = {
 
 // ── media_assets ──────────────────────────────────────────────────────────────
 const _mediaInsert = db.prepare(`
-  INSERT INTO media_assets (tenant_slug, kind, r2_key, content_type, size_bytes, sha256, ref_kind, ref_id)
-  VALUES (@tenant_slug, @kind, @r2_key, @content_type, @size_bytes, @sha256, @ref_kind, @ref_id)
+  INSERT INTO media_assets (tenant_slug, kind, r2_key, content_type, size_bytes, sha256, ref_kind, ref_id, meta)
+  VALUES (@tenant_slug, @kind, @r2_key, @content_type, @size_bytes, @sha256, @ref_kind, @ref_id, @meta)
 `);
 const _mediaByTenant = db.prepare(`
   SELECT * FROM media_assets WHERE tenant_slug = ? AND status = 'active' ORDER BY id DESC LIMIT ?
+`);
+const _mediaByRef = db.prepare(`
+  SELECT * FROM media_assets WHERE ref_kind = ? AND ref_id = ? AND status = 'active' ORDER BY id
+`);
+const _mediaByTenantKind = db.prepare(`
+  SELECT * FROM media_assets WHERE tenant_slug = ? AND kind = ? AND status = 'active' ORDER BY id
 `);
 const _mediaSoftDelete = db.prepare("UPDATE media_assets SET status = 'deleted' WHERE id = ?");
 const _mediaById = db.prepare('SELECT * FROM media_assets WHERE id = ?');
 
 export const mediaAssets = {
   record({ tenantSlug, kind, r2Key, contentType = null, sizeBytes = null,
-           sha256 = null, refKind = null, refId = null }) {
+           sha256 = null, refKind = null, refId = null, meta = null }) {
     const r = _mediaInsert.run({
       tenant_slug: tenantSlug, kind, r2_key: r2Key, content_type: contentType,
       size_bytes: sizeBytes, sha256, ref_kind: refKind,
       ref_id: refId != null ? String(refId) : null,
+      meta: meta ? JSON.stringify(meta) : null,
     });
     return r.lastInsertRowid;
   },
   byTenant(slug, limit = 200) { return _mediaByTenant.all(slug, limit); },
+  byRef(refKind, refId) { return _mediaByRef.all(refKind, String(refId)); },
+  byTenantKind(slug, kind) { return _mediaByTenantKind.all(slug, kind); },
   byId(id) { return _mediaById.get(id) || null; },
   softDelete(id) { _mediaSoftDelete.run(id); },
 };

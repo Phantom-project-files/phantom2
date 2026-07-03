@@ -242,6 +242,45 @@ const mom = activeMoments({ now: new Date('2026-07-02T12:00:00Z'), location: 'Lo
 check('moments feed: FIFA WC active on 2026-07-02 + summer season',
   mom.some((m) => m.key === 'fifa_wc_2026' && m.active) && mom.some((m) => m.key === 'season' && /summer/.test(m.label)));
 
+// ── Phase 4: media engine — full mock chain (submit → poll → chain → R2) ────
+// current state: 4 reels + 2 posts (from the sandbox regenerate above)
+const { registerMediaJobs, generateMedia, estimateForIntake, onFalWebhook } = await import('../lib/media/render.js');
+const { mediaAssets } = await import('../lib/db.js');
+registerMediaJobs();
+
+const est = estimateForIntake(intake.id);
+check('estimate: 6 faces + shot reuse math + $ figure',
+  est.phantoms === 6 && est.reels === 4 && est.posts === 2
+  && est.video_shots + est.reused_shots === 8   // 4 reels × 2 mock frames
+  && est.reused_shots >= 1 && typeof est.est_usd === 'number' && est.mock_mode === true);
+
+const kicked = generateMedia({ intakeId: intake.id });
+check('generate-media kicks everything pending', kicked.phantoms === 6 && kicked.reels === 4 && kicked.posts === 2);
+
+// mock chain: phantoms render → reels wait on refs (retryable) → keyframe → video → shot
+await new Promise((r) => setTimeout(r, 5000));
+const phReady = phantoms.byTenant(tenant.slug).filter((p) => p.intake_id === intake.id && p.status === 'ready');
+check('all 6 phantom faces ready with R2 ref keys', phReady.length === 6 && phReady.every((p) => p.ref_image_key));
+
+let mediaPieces = pieces.byIntake(intake.id);
+for (let i = 0; i < 20 && mediaPieces.some((p) => p.status !== 'ready'); i++) {
+  await new Promise((r) => setTimeout(r, 1500));
+  mediaPieces = pieces.byIntake(intake.id);
+}
+check(`all pieces reach ready (${mediaPieces.filter((p) => p.status === 'ready').length}/6)`,
+  mediaPieces.every((p) => p.status === 'ready'));
+
+const shots = mediaAssets.byTenantKind(tenant.slug, 'shot');
+check(`shot library populated with reuse (${shots.length} fresh shots for 4 reels × 2 frames)`,
+  shots.length === est.video_shots && shots.length < 8);
+const postAssets = mediaAssets.byTenantKind(tenant.slug, 'post');
+check('post images in media_assets', postAssets.length === 2);
+check('fal spend recorded at $0 (mock)', costEvents.totalsSince(0).some((r) => r.provider === 'fal'));
+
+const pollJobId = jobs.enqueue({ kind: 'fal_poll', tenantSlug: tenant.slug, refKind: 'fal_request', refId: 'wh-test', payload: { requestId: 'wh-test', modelKey: 'image', next: { action: 'ingest_post', ctx: { pieceId: mediaPieces[0].id } } }, runAfter: Math.floor(Date.now() / 1000) + 999 });
+check('webhook accelerates queued poll to now', onFalWebhook('wh-test') === 1 && jobStore.byId(pollJobId).run_after === 0);
+jobStore.fail(pollJobId, 'smoke cleanup');
+
 const sigCheck = verifyStripeSignature('{}', null);
 check('webhook unsigned-dev-mode accepted when no secret', sigCheck.ok === true && sigCheck.unsigned === true);
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';

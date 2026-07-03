@@ -25,6 +25,8 @@ import adminAuthRoutes from './admin/auth-routes.js';
 import { registerScrapeJobs, startIntake } from './lib/scrape/runner.js';
 import { intakes, scrapeSources, tenants, purchases, phantoms, campaigns, pieces } from './lib/db.js';
 import { registerScriptGenJobs } from './lib/scriptgen/index.js';
+import { registerMediaJobs, generateMedia, estimateForIntake, onFalWebhook } from './lib/media/render.js';
+import { mediaAssets } from './lib/db.js';
 import { registerValuePropJobs } from './lib/valueprop.js';
 import { registerEmailJobs } from './lib/email.js';
 import { createCheckout, markIntakePaid, verifyStripeSignature, handleStripeEvent, paymentsMode } from './lib/payments.js';
@@ -80,10 +82,13 @@ app.post('/api/events', eventsLimiter, (req, res) => {
   }
 });
 
-// ── fal webhook (Phase 4 wires this to the jobs table; stub logs + 200s now) ─
+// ── fal webhook — accelerates the matching queued poll job (single execution
+// path lives in the poller; a webhook can never double-ingest).
 app.post('/webhook/fal', (req, res) => {
-  logEvent({ event: 'fal.webhook', provider: 'fal', refId: req.body?.request_id || null, meta: { status: req.body?.status || null } });
-  res.json({ ok: true });
+  const requestId = req.body?.request_id || null;
+  const accelerated = requestId ? onFalWebhook(requestId) : 0;
+  logEvent({ event: 'fal.webhook', provider: 'fal', refId: requestId, message: `accelerated ${accelerated} poll(s)`, meta: { status: req.body?.status || null } });
+  res.json({ ok: true, accelerated });
 });
 
 // ── stripe webhook (raw body; signature-verified when a secret is set) ───────
@@ -318,16 +323,54 @@ app.post('/api/admin/intake/:id/scriptgen', requireAdmin, (req, res) => {
   res.json({ success: true, job_id: jobId });
 });
 
+// Phase 4: media generation — explicit, estimated, never auto (v1 spend lesson).
+app.get('/api/admin/intake/:id/media-estimate', requireAdmin, (req, res) => {
+  try { res.json({ success: true, estimate: estimateForIntake(req.params.id) }); }
+  catch (err) { res.status(400).json({ success: false, error: err.message }); }
+});
+
+app.post('/api/admin/intake/:id/generate-media', requireAdmin, (req, res) => {
+  try {
+    const { phantoms: doPhantoms = true, reels = 'all', posts = 'all' } = req.body || {};
+    const kicked = generateMedia({ intakeId: req.params.id, doPhantoms, reels, posts });
+    res.json({ success: true, kicked, estimate: estimateForIntake(req.params.id) });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// Signed-URL redirect for any media asset (console thumbnails/players).
+app.get('/api/admin/media/:assetId/url', requireAdmin, async (req, res) => {
+  const asset = mediaAssets.byId(parseInt(req.params.assetId, 10));
+  if (!asset || asset.status !== 'active') return res.status(404).json({ success: false, error: 'not found' });
+  try {
+    const url = await storage.signedGet(asset.tenant_slug, asset.r2_key, 600);
+    res.redirect(302, url);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.get('/api/admin/intake/:id/production', requireAdmin, (req, res) => {
   const intake = intakes.byId(req.params.id);
   if (!intake) return res.status(404).json({ success: false, error: 'not found' });
   const pieceRows = pieces.byIntake(intake.id).map((p) => ({ ...p, brief: JSON.parse(p.brief) }));
+  // media asset ids per piece/phantom (console links via /api/admin/media/:id/url)
+  const assetsByPiece = {};
+  const assetsByPhantom = {};
+  for (const a of mediaAssets.byTenant(intake.tenant_slug, 2000)) {
+    const meta = a.meta ? JSON.parse(a.meta) : {};
+    if (a.ref_kind === 'piece' && meta.stage !== 'keyframe') (assetsByPiece[a.ref_id] ||= []).push({ id: a.id, kind: a.kind });
+    if (a.kind === 'shot' && meta.source_piece_id) (assetsByPiece[meta.source_piece_id] ||= []).push({ id: a.id, kind: 'shot', slot: meta.slot });
+    if (a.ref_kind === 'phantom') assetsByPhantom[a.ref_id] = a.id;
+  }
   res.json({
     success: true,
     intake: { id: intake.id, business_name: intake.business_name, tenant_slug: intake.tenant_slug, plan: intake.plan, payment_status: intake.payment_status },
-    phantoms: phantoms.byTenant(intake.tenant_slug).filter((p) => p.intake_id === intake.id),
+    phantoms: phantoms.byTenant(intake.tenant_slug).filter((p) => p.intake_id === intake.id)
+      .map((p) => ({ ...p, asset_id: assetsByPhantom[String(p.id)] || null })),
     campaigns: campaigns.byIntake(intake.id).map((c) => ({ ...c, product_refs: JSON.parse(c.product_refs || '[]') })),
-    pieces: pieceRows,
+    pieces: pieceRows.map((p) => ({ ...p, assets: assetsByPiece[String(p.id)] || [] })),
     counts: pieces.countByIntake(intake.id),
     calendar: pieces.calendar(intake.id),
   });
@@ -371,6 +414,7 @@ registerScrapeJobs();
 registerValuePropJobs();
 registerEmailJobs();
 registerScriptGenJobs();
+registerMediaJobs();
 jobsWorker.start();
 setInterval(() => { try { adminSessions.purgeExpired(); } catch {} }, 3600_000).unref();
 

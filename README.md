@@ -70,5 +70,11 @@ allocation (pillar split, phantom round-robin, Premium = exactly 1 reel + 1 post
 calendar), per-piece production briefs (frame prompts ≤3, video/audio/graphics
 instructions). Operator sandbox: custom reel/post counts per brand + regenerate.
 
-Next: Phase 4 — Media engine (Fal nano-banana + seedance, shot library, webhooks).
+Phase 4 (Media engine) ✅ — Nano Banana phantom faces + keyframes, Seedance
+image→video shots, order-based shot reuse (~33% fewer video gens), webhook-
+accelerated single-path polling (no double-ingest), R2 ingest + media_assets,
+cost preflight (console shows the $ estimate before the operator clicks
+Generate — media never auto-fires), billing breaker wired to Fal errors.
+
+Next: Phase 5 — Edit layer (beat-cut, Remotion graphics, post composer).
 Full plan: `docs/PLAN.md`.
