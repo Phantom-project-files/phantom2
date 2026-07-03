@@ -1,5 +1,22 @@
 # Phantom 2.0 — Session Log · 2026-07-02 · #1
 
+> **SESSION CLOSED 2026-07-02 (late).** One session, entire build: **v0.1.0 → v0.9.0, all 8 phases
+> shipped + verified** (smoke 98/98 · verify-edit-real 7/7 · verify-claude-code live ✅).
+> Everything committed + pushed to `Phantom-project-files/phantom2` main, tags v0.2.0–v0.9.0.
+>
+> **RESUME TOMORROW:**
+> ```bash
+> cd ~/Downloads/000_phantom2.0 && git pull
+> cat this-is-what-we-did-2026-07-02-1.md          # this file = full session history
+> cd backend && npm run smoke                       # 98 checks, ~90s, $0 — confirm nothing rotted
+> npm start                                         # localhost:3020 · vmathu20 / pw in backend/.env
+> ```
+> **Next work = the post-build operator checklist** (bottom of this file + docs/PLAN.md), in order:
+> Fal fund + schema-verify (1 phantom + 1 reel + 1 post first) → rotate Claude/Fal keys → Google
+> OAuth creds → Stripe live + webhook secret → Fly `phantom2` + R2 provision → audio library
+> upload → Remotion scaffold → domain cutover. Claude can drive Fly/R2 provisioning and the first
+> funded Fal run; start a session with "phantom 2.0 — checklist" and memory carries the context.
+
 > **Living doc** (protocol carried from v1): updated every prompt, committed + pushed to `main` each turn.
 > Repo: `Downloads/000_phantom2.0` → GitHub `Phantom-project-files/phantom2` (private).
 > v1 session logs live in the old repo; 2.0 logs live here from now on.
