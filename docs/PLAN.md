@@ -59,9 +59,20 @@ v1 (`000_Phantom` → online-phantom.com) is the reference implementation and le
 
 ## Post-build operator checklist (once ALL phases are built — operator decision 2026-07-02)
 
-1. **Fal.ai setup** — fund the account, then verify the pinned model ids + input field names
-   against fal.ai/models docs (`FAL_IMAGE_MODEL`/`FAL_VIDEO_MODEL` env + the submit inputs in
-   `lib/media/render.js`). First funded run: 1 phantom + 1 reel + 1 post before any batch.
+1. **Fal.ai setup** — ✅ SCHEMAS VERIFIED 2026-07-03 against fal.ai OpenAPI (via Chrome):
+   - `fal-ai/nano-banana-pro` (t2i, $0.15/img 1K–2K, 4K ×2) — takes NO `image_urls`; phantom-ref
+     gens now route to `fal-ai/nano-banana-pro/edit` (`image_urls` REQUIRED there) via new
+     `FAL_IMAGE_EDIT_MODEL` / `MODELS.imageEdit`.
+   - Video id was WRONG (`fal-ai/bytedance/seedance-2.0` doesn't exist) → pinned to
+     `bytedance/seedance-2.0/image-to-video` ($0.3034/sec @720p, $0.682 @1080p). `duration`
+     is a STRING enum "4".."15" (was int 6 → fixed); `generate_audio` defaults true → forced
+     false (music is operator-library at edit time); `resolution` env-pinned `FAL_VIDEO_RESOLUTION=720p`.
+   - Cost-estimate defaults corrected: image $0.04→$0.15, video-sec $0.125→$0.3034
+     (a 60-piece batch estimate is now honest — reels ≈ $1.97/fresh shot at 6 s).
+   - If live ingest ever hits SSRF_BLOCKED on `storage.googleapis.com`, add it via
+     `INGEST_ALLOWED_HOSTS` (env edit, no deploy). `v3b.fal.media` already matches.
+   - REMAINING (needs operator $): fund account, then first funded run: 1 phantom +
+     1 reel + 1 post before any batch.
 2. **Rotate keys** — Claude + Fal keys sat in plaintext in `~/Downloads/Phantom2.0.env.rtf`.
 3. **Google OAuth** — create the OAuth client (GCP console), set GOOGLE_CLIENT_ID/SECRET +
    authorized redirect `https://<domain>/auth/google/callback`.

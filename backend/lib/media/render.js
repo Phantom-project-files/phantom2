@@ -31,9 +31,12 @@ import { loadScrapeDoc } from '../scriptgen/scrape-loader.js';
 
 const SHOT_REUSE = () => process.env.SHOT_REUSE !== '0';
 const VIDEO_SECONDS = () => parseInt(process.env.FAL_VIDEO_DURATION || '6', 10);
+const VIDEO_RESOLUTION = () => process.env.FAL_VIDEO_RESOLUTION || '720p';
 // USD estimates for preflight display + the cost ledger — env-tunable, not billing-grade.
-const PRICE_IMAGE = () => parseFloat(process.env.FAL_PRICE_IMAGE_USD || '0.04');
-const PRICE_VIDEO_SEC = () => parseFloat(process.env.FAL_PRICE_VIDEO_SEC_USD || '0.125');
+// Defaults from fal.ai pages 2026-07-03: nano-banana-pro $0.15/image (1K/2K; 4K doubles),
+// seedance-2.0 i2v $0.3034/sec @720p ($0.682 @1080p).
+const PRICE_IMAGE = () => parseFloat(process.env.FAL_PRICE_IMAGE_USD || '0.15');
+const PRICE_VIDEO_SEC = () => parseFloat(process.env.FAL_PRICE_VIDEO_SEC_USD || '0.3034');
 
 const MOCK_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 const MOCK_MP4 = Buffer.from('AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDE=', 'base64'); // stub bytes — pipeline plumbing only
@@ -135,8 +138,10 @@ const CONTINUATIONS = {
       input: {
         prompt: `${brief.video_description || 'natural handheld UGC motion'}. Vertical 9:16.`,
         image_url: keyframeUrl,
-        duration: VIDEO_SECONDS(),
+        duration: String(VIDEO_SECONDS()), // seedance schema: string enum "4".."15", not int
         aspect_ratio: '9:16',
+        resolution: VIDEO_RESOLUTION(),
+        generate_audio: false, // audio comes from the operator music library at edit time
       },
       next: { action: 'ingest_shot', ctx },
     });
@@ -218,7 +223,8 @@ async function handleRenderPost({ pieceId }) {
   const { ph, url } = await phantomRefUrl(piece);
   pieces.setStatus(piece.id, 'rendering');
   await submitWithPoll({
-    slug: piece.tenant_slug, modelKey: 'image',
+    // phantom ref → /edit endpoint (image_urls is required there, rejected on plain t2i)
+    slug: piece.tenant_slug, modelKey: url ? 'imageEdit' : 'image',
     input: {
       prompt: `${brief.post_prompt}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}. AI-generated synthetic creator.${brief.regen_feedback ? ` OPERATOR FEEDBACK (must address): ${brief.regen_feedback}` : ''}`,
       ...(url ? { image_urls: [url] } : {}),
@@ -252,7 +258,7 @@ async function handleRenderReel({ pieceId }) {
   pieces.setStatus(piece.id, 'rendering');
   for (const slot of slots) {
     await submitWithPoll({
-      slug: piece.tenant_slug, modelKey: 'image',
+      slug: piece.tenant_slug, modelKey: url ? 'imageEdit' : 'image',
       input: {
         prompt: `${frames[slot]}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}. Vertical 9:16 video keyframe. AI-generated synthetic creator.${brief.regen_feedback ? ` OPERATOR FEEDBACK (must address): ${brief.regen_feedback}` : ''}`,
         ...(url ? { image_urls: [url] } : {}),
