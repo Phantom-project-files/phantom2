@@ -259,6 +259,19 @@ export const storage = {
     return await b.signedGet(key, ttlSec);
   },
 
+  // A URL an EXTERNAL service (Fal) can actually fetch. R2 signed URLs qualify;
+  // local-backend "URLs" are in-process paths, so inline the bytes as a data URI
+  // (fal file inputs accept hosted URLs, data URIs, or fal-storage URLs).
+  async fetchableUrl(slug, key, ttlSec = defaultTtl()) {
+    assertKeyMatchesSlug(slug, key);
+    const b = await backend();
+    const url = await b.signedGet(key, ttlSec);
+    if (/^https:\/\//.test(url)) return url;
+    const fp = path.join(LOCAL_ROOT, key);
+    const ct = fs.existsSync(fp + '.ct') ? fs.readFileSync(fp + '.ct', 'utf8').trim() : 'application/octet-stream';
+    return `data:${ct};base64,${fs.readFileSync(fp).toString('base64')}`;
+  },
+
   async delete(slug, key) {
     assertKeyMatchesSlug(slug, key);
     const b = await backend();

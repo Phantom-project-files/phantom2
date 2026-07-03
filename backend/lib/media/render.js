@@ -130,7 +130,7 @@ const CONTINUATIONS = {
       refKind: 'piece', refId: piece.id, meta: { piece_id: piece.id, slot: ctx.slot, stage: 'keyframe' },
     });
     recordSpend({ slug: piece.tenant_slug, operation: 'reel.keyframe', refId: piece.id, images: 1, mock: !!result?.mock });
-    const keyframeUrl = result?.mock ? 'mock://keyframe' : await storage.signedGet(piece.tenant_slug, key, 3600);
+    const keyframeUrl = result?.mock ? 'mock://keyframe' : await storage.fetchableUrl(piece.tenant_slug, key, 3600);
     const brief = JSON.parse(piece.brief);
     await submitWithPoll({
       slug: piece.tenant_slug,
@@ -212,7 +212,7 @@ async function phantomRefUrl(piece) {
     throw err;
   }
   if (process.env.MOCK_MEDIA_GEN === '1') return { ph, url: 'mock://phantom-ref' };
-  return { ph, url: await storage.signedGet(ph.tenant_slug, ph.ref_image_key, 3600) };
+  return { ph, url: await storage.fetchableUrl(ph.tenant_slug, ph.ref_image_key, 3600) };
 }
 
 async function handleRenderPost({ pieceId }) {

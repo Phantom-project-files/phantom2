@@ -12,6 +12,10 @@
 //   → { request_id, status_url, response_url }  — then poll, or better, pass
 //   ?fal_webhook=<url> and let POST /webhook/fal advance the job (v1 lesson: polling
 //   loops died with the browser tab; webhooks + the jobs table don't).
+// GOTCHA (caught live 2026-07-03): status/result reads live on the BASE app path —
+// `owner/app/requests/<id>` — even for subpath endpoints. Polling
+// `fal-ai/nano-banana-pro/edit/requests/<id>/status` returns 405 forever while the
+// request sits COMPLETED. basePath() strips the subpath for all read calls.
 //
 // classifyError() feeds the jobs-queue billing circuit-breaker (err.billing=true
 // halts sibling jobs instead of burning a whole batch — the Enhancor-401 lesson).
@@ -74,14 +78,20 @@ export async function submit(modelKey, input, { webhookUrl = null } = {}) {
   return data;
 }
 
+// queue reads use the base `owner/app` path — subpath endpoints ('/edit',
+// '/image-to-video') 405 on their full path.
+function basePath(modelKey) {
+  return MODELS[modelKey].split('/').slice(0, 2).join('/');
+}
+
 export async function status(modelKey, requestId) {
   if (isMock()) return { status: 'COMPLETED', request_id: requestId, mock: true };
-  return await falFetch(`${MODELS[modelKey]}/requests/${requestId}/status`);
+  return await falFetch(`${basePath(modelKey)}/requests/${requestId}/status`);
 }
 
 export async function result(modelKey, requestId) {
   if (isMock()) return { request_id: requestId, mock: true, images: [], video: null };
-  return await falFetch(`${MODELS[modelKey]}/requests/${requestId}`);
+  return await falFetch(`${basePath(modelKey)}/requests/${requestId}`);
 }
 
 export default { MODELS, submit, status, result, classifyError };
