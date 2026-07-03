@@ -30,6 +30,9 @@ import { mediaAssets, audioTracks } from './lib/db.js';
 import { registerEditJobs } from './lib/edit/assemble.js';
 import { registerComposeJobs } from './lib/edit/post-compose.js';
 import { ffmpegAvailable } from './lib/edit/audio.js';
+import { applyVerdict, phantomVerdict, REASON_TAGS, REGEN_CAP } from './lib/qc.js';
+import { coverageReport } from './lib/coverage.js';
+import { rollup as qcRollup, summarizeLearnings } from './lib/qc-learnings.js';
 import { registerValuePropJobs } from './lib/valueprop.js';
 import { registerEmailJobs } from './lib/email.js';
 import { createCheckout, markIntakePaid, verifyStripeSignature, handleStripeEvent, paymentsMode } from './lib/payments.js';
@@ -340,6 +343,39 @@ app.post('/api/admin/intake/:id/generate-media', requireAdmin, (req, res) => {
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
   }
+});
+
+// ── QC (Phase 6): flag → regen (max 3), verdicts feed brand learnings ────────
+app.post('/api/admin/piece/:id/qc', requireAdmin, (req, res) => {
+  try {
+    const { verdict, reason_text = null, reason_tags = null } = req.body || {};
+    const result = applyVerdict({
+      pieceId: parseInt(req.params.id, 10), verdict,
+      reasonText: reason_text, reasonTags: reason_tags, actor: 'operator',
+    });
+    res.json({ success: true, ...result, reason_tags_allowed: REASON_TAGS, cap: REGEN_CAP });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/phantom/:id/qc', requireAdmin, (req, res) => {
+  try {
+    const { verdict, reason_text = null } = req.body || {};
+    const result = phantomVerdict({ phantomId: parseInt(req.params.id, 10), verdict, reasonText: reason_text });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/intake/:id/coverage', requireAdmin, (req, res) => {
+  try { res.json({ success: true, report: coverageReport(req.params.id) }); }
+  catch (err) { res.status(400).json({ success: false, error: err.message }); }
+});
+
+app.get('/api/admin/tenant/:slug/learnings', requireAdmin, async (req, res) => {
+  res.json({ success: true, rollup: qcRollup(req.params.slug), bullets: await summarizeLearnings(req.params.slug) });
 });
 
 // ── audio library (Phase 5) — the operator's rights-cleared track pool. Raw-body

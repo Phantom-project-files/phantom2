@@ -24,6 +24,7 @@ import { tierConfig, PILLAR_SPLIT } from '../tiers.js';
 import { activeMoments } from '../moments.js';
 import { PHANTOM_FACE_CONSTRAINT } from '../safety.js';
 import { loadScrapeDoc } from './scrape-loader.js';
+import { brandLearningsBlock } from '../qc-learnings.js';
 
 const BUDGET = () => parseInt(process.env.SCRIPTGEN_LLM_CALL_BUDGET || '40', 10);
 const CAL_DAYS = () => parseInt(process.env.SCRIPTGEN_CALENDAR_DAYS || '30', 10);
@@ -119,6 +120,8 @@ export async function runScriptGen({ intakeId, reels = null, posts = null, regen
     vertical: scrape?.vertical?.vertical || 'other',
   };
   const moments = activeMoments({ location: scrape?.about?.location || '', scrape });
+  // QC training loop (Phase 6): last batch's reject reasons brief this batch.
+  const learnings = await brandLearningsBlock(slug);
   let calls = 0;
   const spend = async (opts) => {
     if (++calls > BUDGET()) throw new Error(`scriptgen LLM budget exceeded (${BUDGET()} calls)`);
@@ -153,7 +156,7 @@ appearance = a LOCKED visual description reused verbatim for every image generat
     task: 'synthesis',
     system: 'You are Phantom\'s campaign strategist. Ideas must be grounded in the brand data and the listed real-world moments — never invent events.',
     prompt: `Build exactly ${targetN} campaign ideas for ${brand.name}. Each campaign = a cluster of reels + posts sharing ONE visual design. Mix types: product-led, plus moment-riding ones ONLY from the real moments below (weather/season, sports, holidays, business events). ${targetN >= 5 ? 'At least half product-led.' : ''}
-
+${learnings}
 Brand: ${JSON.stringify({ about: brand.about, voice: brand.voice, products: brand.products, vertical: brand.vertical })}
 Real moments right now: ${JSON.stringify(moments)}
 
@@ -196,7 +199,7 @@ visual_design = the shared look (setting, palette, lighting, mood) every piece i
       task: 'extraction',
       system: 'You write production briefs for AI-generated UGC. Every image/video prompt must describe the phantom as a synthetic AI creator consistent with their locked appearance. Output ONLY JSON.',
       prompt: `Write one production brief per slot for this campaign. All pieces share the campaign's visual design.
-
+${learnings}
 Campaign: ${JSON.stringify({ title: campaign.title, type: campaign.type, concept: campaign.concept, visual_design: campaign.visual_design, moment: campaign.moment, products: JSON.parse(campaign.product_refs || '[]') })}
 Brand voice: ${JSON.stringify(brand.voice)}
 Slots:
@@ -237,6 +240,7 @@ post brief: { "kind":"post", "post_prompt": string (image prompt: phantom + prod
   const artifact = {
     version: 1, intake_id: intakeId, tenant_slug: slug, plan: intake.plan,
     counts: { reels: R, posts: P, campaigns: N, llm_calls: calls },
+    learnings_used: learnings.length > 0,
     moments,
     phantoms: phantomRows.map(({ id, name, age, persona, vibe }) => ({ id, name, age, persona, vibe })),
     campaigns: campaignRows.map(({ id, title, type, moment }) => ({ id, title, type, moment })),

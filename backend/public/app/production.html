@@ -50,6 +50,7 @@
   </div>
   <div class="card card-pad panel"><h2>Phantoms <span class="dim" style="font-weight:400; font-size:.75rem">the 6 UGC creators</span></h2><div class="phantom-grid" id="phantoms"></div></div>
   <div class="card card-pad panel"><h2>Campaigns</h2><div id="campaigns"></div></div>
+  <div class="card card-pad panel"><h2>Coverage <span id="covBadge"></span></h2><div id="coverage" class="dim" style="font-size:.8rem">loading…</div></div>
   <div class="card card-pad panel"><h2>Deployment calendar</h2><div class="cal" id="calendar"></div></div>
   <div class="card card-pad panel"><h2>Pieces</h2><div style="overflow-x:auto" id="pieces"></div></div>
 </main>
@@ -123,15 +124,52 @@ async function render() {
 
   const phMap = Object.fromEntries(d.phantoms.map((p) => [p.id, p.name]));
   const cMap = Object.fromEntries(d.campaigns.map((c) => [c.id, c.title]));
-  document.getElementById('pieces').innerHTML = '<table><thead><tr><th>date</th><th>kind</th><th>pillar</th><th>campaign</th><th>phantom</th><th>status</th><th>media</th><th>brief</th></tr></thead><tbody>'
-    + d.pieces.map((p) => '<tr><td>' + esc(p.scheduled_date) + '</td><td>' + p.kind + '</td><td>' + esc(p.pillar || '—')
+  document.getElementById('pieces').innerHTML = '<table><thead><tr><th>date</th><th>kind</th><th>pillar</th><th>campaign</th><th>phantom</th><th>status</th><th>media</th><th>QC</th><th>brief</th></tr></thead><tbody>'
+    + d.pieces.map((p) => {
+      const qc = p.status === 'ready'
+        ? '<button class="btn" style="height:24px; font-size:.66rem; padding:0 8px" onclick="qcPiece(' + p.id + ',\'approve\')">✓</button> '
+          + '<button class="btn" style="height:24px; font-size:.66rem; padding:0 8px" onclick="qcPiece(' + p.id + ',\'reject\')">✗</button>'
+        : (p.regen_count ? '<span class="dim" style="font-size:.68rem">regen ' + p.regen_count + '/3</span>' : '—');
+      return '<tr><td>' + esc(p.scheduled_date) + '</td><td>' + p.kind + '</td><td>' + esc(p.pillar || '—')
       + '</td><td>' + esc(cMap[p.campaign_id] || p.campaign_id) + '</td><td>' + esc(phMap[p.phantom_id] || '—')
       + '</td><td>' + esc(p.status) + '</td><td>'
       + (p.assets || []).map((a) => '<a href="/api/admin/media/' + a.id + '/url" target="_blank">' + a.kind + (a.slot != null ? a.slot : '') + '</a>').join(' · ')
-      + '</td><td><details class="brief"><summary>view</summary><pre>'
-      + esc(JSON.stringify(p.brief, null, 1)) + '</pre></details></td></tr>').join('')
+      + '</td><td>' + qc + '</td><td><details class="brief"><summary>view</summary><pre>'
+      + esc(JSON.stringify(p.brief, null, 1)) + '</pre></details></td></tr>';
+    }).join('')
     + '</tbody></table>';
+
+  const cov = await fetch('/api/admin/intake/' + encodeURIComponent(intakeId) + '/coverage', { credentials: 'same-origin' }).then((r) => r.json());
+  if (cov.success) {
+    const rep = cov.report;
+    document.getElementById('covBadge').innerHTML = rep.green
+      ? '<span class="tag" style="color:#36e2c4; border-color:rgba(54,226,196,.5)">GREEN</span>'
+      : '<span class="tag" style="color:#ffb454; border-color:rgba(255,180,84,.5)">ATTENTION</span>';
+    document.getElementById('coverage').innerHTML =
+      'counts: ' + rep.counts.reels + 'r/' + rep.counts.posts + 'p'
+      + (rep.counts.plan_target ? ' (plan ' + rep.counts.plan_target.reels + '/' + rep.counts.plan_target.posts + (rep.counts.custom_build ? ' — custom build' : '') + ')' : '')
+      + ' · phantoms used ' + rep.phantoms.used + '/' + rep.phantoms.cast
+      + ' · QC reviewed ' + rep.qc.reviewed + ', pending ' + rep.qc.pending_review
+      + '<br>pillars: ' + rep.pillars.map((p) => p.pillar + ' ' + p.actual_pct + '%/' + p.target_pct + '%' + (p.ok ? '' : ' ⚠')).join(' · ')
+      + '<br>campaign types: ' + Object.entries(rep.campaign_types).map(([t, n]) => t + '×' + n).join(' · ');
+  }
 }
+
+window.qcPiece = async (id, verdict) => {
+  let reason_text = null, reason_tags = null;
+  if (verdict === 'reject') {
+    reason_text = prompt('Why? (this trains the next batch — be specific)');
+    if (reason_text === null) return;
+    const tags = prompt('Tags (comma-sep): face_quality, caption, brand_tone, off_pillar, product, motion, audio', '');
+    reason_tags = (tags || '').split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  const r = await fetch('/api/admin/piece/' + id + '/qc', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+    body: JSON.stringify({ verdict, reason_text, reason_tags }),
+  }).then((x) => x.json());
+  if (!r.success) alert(r.error);
+  render();
+};
 render();
 loadEstimate();
 </script>

@@ -71,7 +71,10 @@ async function runJob(kind, entry, job) {
       store.fail(job.id, err.message);
       logEvent({ level: 'error', event: 'jobs.failed', tenantSlug: job.tenant_slug, refId: job.id, message: `${kind}: ${err.message}`.slice(0, 500) });
     } else {
-      store.retry(job.id, Math.floor(Date.now() / 1000) + backoff(job.attempts), err.message);
+      // handlers may set err.retryAfterSec for known-short waits (e.g. "phantom
+      // ref not ready") so dependency chains don't sit in the generic backoff
+      const delay = Number.isFinite(err?.retryAfterSec) ? err.retryAfterSec : backoff(job.attempts);
+      store.retry(job.id, Math.floor(Date.now() / 1000) + delay, err.message);
     }
   } finally {
     entry.running--;

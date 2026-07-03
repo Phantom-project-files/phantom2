@@ -327,6 +327,60 @@ check(`assembly pulled reused shots from the campaign pool (${reusedInAssembly})
 check('archetype picker (stat/quote/hero)', pickArchetype('oversized number stat') === 'stat_card'
   && pickArchetype('bold quote layout') === 'quote' && pickArchetype('anything else') === 'product_hero');
 
+// ── Phase 6: QC — approve/reject → regen (cap 3) → learnings → coverage ─────
+const { applyVerdict } = await import('../lib/qc.js');
+const { rollup, summarizeLearnings, brandLearningsBlock } = await import('../lib/qc-learnings.js');
+const { coverageReport } = await import('../lib/coverage.js');
+const { qcVerdicts } = await import('../lib/db.js');
+
+const qcPieces = pieces.byIntake(intake.id);
+const aReel = qcPieces.find((p) => p.kind === 'reel');
+const aPost = qcPieces.find((p) => p.kind === 'post');
+
+const appr = applyVerdict({ pieceId: aPost.id, verdict: 'approve' });
+check('QC approve → status approved + verdict row', appr.status === 'approved'
+  && pieces.byId(aPost.id).status === 'approved'
+  && qcVerdicts.byIntake(intake.id).some((v) => v.piece_id === aPost.id && v.verdict === 'approve'));
+
+const oldReelAssets = mediaAssets.byRef('piece', aReel.id).map((a) => a.id);
+const rej = applyVerdict({ pieceId: aReel.id, verdict: 'reject', reasonText: 'phantom looks stiff, motion too slow', reasonTags: ['face_quality', 'motion'] });
+check('QC reject → regen 1/3, feedback in brief, artifacts cleared', rej.status === 'rendering' && rej.regen === 1
+  && JSON.parse(pieces.byId(aReel.id).brief).regen_feedback.includes('stiff')
+  && mediaAssets.byRef('piece', aReel.id).filter((a) => oldReelAssets.includes(a.id)).length === 0);
+
+// regenerated reel flows back through render → shots → assembly
+let regenReel = pieces.byId(aReel.id);
+for (let i = 0; i < 20 && regenReel.status !== 'ready'; i++) { await new Promise((r) => setTimeout(r, 1000)); regenReel = pieces.byId(aReel.id); }
+const newReelFinal = mediaAssets.byRef('piece', aReel.id).find((a) => a.kind === 'reel');
+check('regenerated reel re-rendered + re-assembled with NEW assets', regenReel.status === 'ready' && !!newReelFinal && !oldReelAssets.includes(newReelFinal.id));
+
+// burn through the cap: rejects 2 and 3 regen, the 4th hard-rejects
+applyVerdict({ pieceId: aReel.id, verdict: 'reject', reasonText: 'caption off-brand', reasonTags: ['caption'] });
+for (let i = 0; i < 20 && pieces.byId(aReel.id).status !== 'ready'; i++) await new Promise((r) => setTimeout(r, 1000));
+applyVerdict({ pieceId: aReel.id, verdict: 'reject', reasonText: 'wrong product angle', reasonTags: ['product'] });
+for (let i = 0; i < 20 && pieces.byId(aReel.id).status !== 'ready'; i++) await new Promise((r) => setTimeout(r, 1000));
+const capHit = applyVerdict({ pieceId: aReel.id, verdict: 'reject', reasonText: 'still wrong', reasonTags: ['product'] });
+check(`regen cap enforced at 3 (4th reject → rejected, capped)`, capHit.capped === true
+  && pieces.byId(aReel.id).status === 'rejected' && pieces.byId(aReel.id).regen_count === 3);
+
+// learnings: rollup + cached summary + injection block
+const ro = rollup(tenant.slug);
+check('learnings rollup (rate + top tags + reasons)', ro.total >= 5 && ro.top_tags.length >= 2 && ro.recent_reasons.length >= 3);
+const bullets = await summarizeLearnings(tenant.slug);
+const bullets2 = await summarizeLearnings(tenant.slug); // second call must hit the volume cache
+check('learnings summarized + volume-cached', bullets.length >= 1 && JSON.stringify(bullets) === JSON.stringify(bullets2));
+const block = await brandLearningsBlock(tenant.slug);
+check('<brand_learnings> block builds', block.includes('<brand_learnings>') && block.includes(bullets[0]));
+
+// scriptgen consumes the learnings on the next batch
+const regen2 = await runScriptGen({ intakeId: intake.id, reels: 2, posts: 2, regenerate: true });
+check('next batch runs with learnings applied', regen2.ok === true);
+
+const cov = coverageReport(intake.id);
+check('coverage report (pillars/phantoms/qc buckets + custom-build detection)',
+  cov.counts.reels === 2 && cov.counts.custom_build === true
+  && cov.pillars.length === 4 && cov.phantoms.cast === 6 && typeof cov.green === 'boolean');
+
 // REAL ffmpeg onset detection on a synthetic track: quiet base + 3 loud bursts.
 if (await ffmpegAvailable()) {
   const { spawn } = await import('child_process');

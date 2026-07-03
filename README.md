@@ -83,5 +83,11 @@ build-dependent; overlay isn't), post composer (archetype-routed 1080×1350
 composites via headless Chrome). Real-path verified with synthesized media
 (`scripts/verify-edit-real.js`). Docker image: +ffmpeg +chromium.
 
-Next: Phase 6 — QC (flag→regen max 3, learnings loop, coverage).
+Phase 6 (QC) ✅ — flag → regenerate with the reason injected into the render
+prompt (hard cap: 3 regens/piece), append-only verdict store rolls into
+`<brand_learnings>` briefing the next batch (Haiku-summarized, volume-cached),
+deterministic coverage report (counts/pillars/phantom-usage/QC funnel → green),
+console QC buttons + coverage badge. Dependency waits retry in 5s not 30s.
+
+Next: Phase 7 — Deploy + tracker (Ayrshare, calendar publish, month-end loop).
 Post-build operator checklist (Fal setup, keys, OAuth creds…): `docs/PLAN.md`.

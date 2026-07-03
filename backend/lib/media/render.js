@@ -181,13 +181,14 @@ async function handleFalPoll({ requestId, modelKey, next }) {
   return await cont({ result, ctx: next.ctx });
 }
 
-async function handleRenderPhantom({ phantomId }) {
+async function handleRenderPhantom({ phantomId, feedback = null }) {
   const ph = phantoms.byId(phantomId);
   if (!ph) throw new Error(`phantom ${phantomId} not found`);
   if (ph.status === 'ready' && ph.ref_image_key) return { already: true };
   phantoms.setStatus(ph.id, 'rendering');
   // v1-proven ref spec: neutral studio look so every downstream gen keys off the same base.
-  const prompt = `${ph.appearance_prompt}. Studio reference portrait: plain white background, plain black t-shirt, neutral expression, front-facing, shoulders-up, soft even lighting. Photorealistic AI-generated person (not a real individual).`;
+  // QC recast feedback rides as an AVOID note — the locked appearance itself never mutates.
+  const prompt = `${ph.appearance_prompt}. Studio reference portrait: plain white background, plain black t-shirt, neutral expression, front-facing, shoulders-up, soft even lighting. Photorealistic AI-generated person (not a real individual).${feedback ? ` AVOID (operator feedback from the previous take): ${feedback}` : ''}`;
   await submitWithPoll({
     slug: ph.tenant_slug, modelKey: 'image',
     input: { prompt, num_images: 1, aspect_ratio: '1:1' },
@@ -202,7 +203,8 @@ async function phantomRefUrl(piece) {
   if (!ph.ref_image_key || ph.status !== 'ready') {
     const err = new Error(`phantom ${ph.id} (${ph.name}) ref not ready yet`);
     err.retryable = true;
-    throw err; // retry/backoff until render_phantom lands
+    err.retryAfterSec = 5; // dependency wait, not a failure — retry fast
+    throw err;
   }
   if (process.env.MOCK_MEDIA_GEN === '1') return { ph, url: 'mock://phantom-ref' };
   return { ph, url: await storage.signedGet(ph.tenant_slug, ph.ref_image_key, 3600) };
@@ -218,7 +220,7 @@ async function handleRenderPost({ pieceId }) {
   await submitWithPoll({
     slug: piece.tenant_slug, modelKey: 'image',
     input: {
-      prompt: `${brief.post_prompt}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}. AI-generated synthetic creator.`,
+      prompt: `${brief.post_prompt}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}. AI-generated synthetic creator.${brief.regen_feedback ? ` OPERATOR FEEDBACK (must address): ${brief.regen_feedback}` : ''}`,
       ...(url ? { image_urls: [url] } : {}),
       num_images: 1, aspect_ratio: '4:5',
     },
@@ -252,7 +254,7 @@ async function handleRenderReel({ pieceId }) {
     await submitWithPoll({
       slug: piece.tenant_slug, modelKey: 'image',
       input: {
-        prompt: `${frames[slot]}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}. Vertical 9:16 video keyframe. AI-generated synthetic creator.`,
+        prompt: `${frames[slot]}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}. Vertical 9:16 video keyframe. AI-generated synthetic creator.${brief.regen_feedback ? ` OPERATOR FEEDBACK (must address): ${brief.regen_feedback}` : ''}`,
         ...(url ? { image_urls: [url] } : {}),
         num_images: 1, aspect_ratio: '9:16',
       },

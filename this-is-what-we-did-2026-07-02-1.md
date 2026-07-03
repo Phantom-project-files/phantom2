@@ -221,12 +221,39 @@
   incl. reused sibling, 2 real onsets, chrome_overlay end-card) + 63KB real Chrome stat-card
   composite.
 
+## Phase 6 — QC BUILT + VERIFIED (same session) → v0.7.0
+- **Migration 006:** `qc_verdicts` (append-only training store: verdict + reason_text +
+  reason_tags face_quality|caption|brand_tone|off_pillar|product|motion|audio, actor) +
+  `qc_learnings_cache` (volume-cached summaries — v1's file cache moved into SQLite).
+- **`lib/qc.js`** — `applyVerdict()` single entry: approve → status approved + verdict row;
+  reject → verdict row + **feedback written into brief.regen_feedback** (render prompts inject it
+  — v1's dropped-feedback bug stays fixed) + old artifacts soft-deleted (incl. the reel's own
+  fresh shots) + re-enqueued render. **Hard cap `REGEN_CAP=3`** (operator spec): 4th reject →
+  status rejected + warn log (cost guard). `phantomVerdict()` recasts a face with the feedback as
+  an AVOID note — the locked appearance_prompt never mutates.
+- **`lib/qc-learnings.js`** — `rollup()` (deterministic: approval rate, top tags, recent reasons),
+  `summarizeLearnings()` (≤6 imperative bullets via Haiku, cached by verdict count),
+  `brandLearningsBlock()` → **script-gen injects into ideation + brief prompts** and stamps
+  `learnings_used` in the artifact. Reject today → next batch briefed to avoid it. Compounds.
+- **`lib/coverage.js`** — deterministic report: counts vs plan (+ custom-build detection), pillar
+  actual-vs-target ±1, all-6-phantoms-used, campaign-type spread, QC funnel, per-bucket ok +
+  overall green.
+- **Queue improvement (live-test catch):** generate-media kicks reels before phantoms finish →
+  first attempt burned + 30s generic backoff. Added **`err.retryAfterSec`** override; the
+  phantom-ref dependency wait retries in 5s. Pieces now reach ready in seconds, not half-minutes.
+- **Console:** production.html — ✓/✗ QC buttons on ready pieces (reject prompts reason + tags),
+  regen n/3 chips, Coverage panel w/ GREEN/ATTENTION badge, pillar/type/QC-funnel lines.
+- **Endpoints:** POST /api/admin/piece/:id/qc · POST /api/admin/phantom/:id/qc ·
+  GET /api/admin/intake/:id/coverage · GET /api/admin/tenant/:slug/learnings.
+- **Verified:** smoke **77/77 PASS** (approve; reject→regen w/ new assets; cap at 3 exact;
+  rollup/cache/block; scriptgen learnings pass; coverage shape). **Live HTTP:** reject → regen
+  1/3 → re-ready in ~10s w/ feedback stored; learnings endpoint returns bullets + tag counts.
+
 ## Next session
-1. **Phase 6 — QC:** operator flag → regen (hard max 3 via pieces.regen_count), verdicts + reasons
-   → `<brand_learnings>` into next batch (v1 port), coverage report, QC console panel.
-2. **Phase 7 — Deploy + tracker:** Ayrshare adapters, calendar-driven publish, month-end loop.
-3. **Phase 8 — local claude_code e2e + promote-to-prod + journey dashboards.**
-4. Then: the post-build operator checklist (docs/PLAN.md) — Fal setup first.
+1. **Phase 7 — Deploy + tracker:** Ayrshare adapters (v1 port), calendar-driven publish,
+   month-end tracker → report → learnings → upgrade offers.
+2. **Phase 8 — local claude_code e2e + promote-to-prod sync + journey dashboards + gallery/ZIP.**
+3. Then: the post-build operator checklist (docs/PLAN.md) — Fal setup first.
 
 ## Runbook
 ```bash

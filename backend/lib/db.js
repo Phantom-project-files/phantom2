@@ -496,6 +496,8 @@ const _pieceInsert = db.prepare(`
   INSERT INTO pieces (tenant_slug, intake_id, campaign_id, phantom_id, kind, pillar, scheduled_date, brief)
   VALUES (@tenant_slug, @intake_id, @campaign_id, @phantom_id, @kind, @pillar, @scheduled_date, @brief)
 `);
+const _pieceUpdateBrief = db.prepare('UPDATE pieces SET brief = ? WHERE id = ?');
+const _pieceIncrRegen = db.prepare("UPDATE pieces SET regen_count = regen_count + 1, status = 'rendering' WHERE id = ?");
 const _piecesByIntake = db.prepare('SELECT * FROM pieces WHERE intake_id = ? ORDER BY scheduled_date, id');
 const _pieceById = db.prepare('SELECT * FROM pieces WHERE id = ?');
 const _pieceSetStatus = db.prepare('UPDATE pieces SET status = ? WHERE id = ?');
@@ -523,6 +525,47 @@ export const pieces = {
   countByIntake(intakeId) { return _piecesCountByIntake.all(intakeId); },
   calendar(intakeId) { return _piecesCalendar.all(intakeId); },
   deleteByIntake(intakeId) { return _piecesDeleteByIntake.run(intakeId).changes; },
+  updateBrief(id, brief) { _pieceUpdateBrief.run(JSON.stringify(brief), id); },
+  incrementRegen(id) { _pieceIncrRegen.run(id); },
+};
+
+// ── qc_verdicts + learnings cache (Phase 6) ───────────────────────────────────
+const _qcInsert = db.prepare(`
+  INSERT INTO qc_verdicts (tenant_slug, intake_id, piece_id, phantom_id, kind, verdict, reason_text, reason_tags, actor)
+  VALUES (@tenant_slug, @intake_id, @piece_id, @phantom_id, @kind, @verdict, @reason_text, @reason_tags, @actor)
+`);
+const _qcByIntake = db.prepare('SELECT * FROM qc_verdicts WHERE intake_id = ? ORDER BY id DESC LIMIT ?');
+const _qcByTenant = db.prepare('SELECT * FROM qc_verdicts WHERE tenant_slug = ? ORDER BY id DESC LIMIT ?');
+const _qcCountByTenant = db.prepare('SELECT COUNT(*) AS n FROM qc_verdicts WHERE tenant_slug = ?');
+const _qcStats = db.prepare(`
+  SELECT verdict, COUNT(*) AS n FROM qc_verdicts WHERE tenant_slug = ? GROUP BY verdict
+`);
+
+export const qcVerdicts = {
+  record({ tenantSlug, intakeId = null, pieceId = null, phantomId = null, kind, verdict, reasonText = null, reasonTags = null, actor = 'operator' }) {
+    const r = _qcInsert.run({
+      tenant_slug: tenantSlug, intake_id: intakeId, piece_id: pieceId, phantom_id: phantomId,
+      kind, verdict, reason_text: reasonText ? String(reasonText).slice(0, 1000) : null,
+      reason_tags: reasonTags ? JSON.stringify(reasonTags) : null, actor,
+    });
+    return r.lastInsertRowid;
+  },
+  byIntake(intakeId, limit = 200) { return _qcByIntake.all(intakeId, limit); },
+  byTenant(slug, limit = 200) { return _qcByTenant.all(slug, limit); },
+  countByTenant(slug) { return _qcCountByTenant.get(slug).n; },
+  stats(slug) { return _qcStats.all(slug); },
+};
+
+const _qcCacheGet = db.prepare('SELECT * FROM qc_learnings_cache WHERE tenant_slug = ?');
+const _qcCacheSet = db.prepare(`
+  INSERT INTO qc_learnings_cache (tenant_slug, verdict_count, bullets, updated_at)
+  VALUES (?, ?, ?, strftime('%s','now'))
+  ON CONFLICT(tenant_slug) DO UPDATE SET verdict_count = excluded.verdict_count,
+    bullets = excluded.bullets, updated_at = strftime('%s','now')
+`);
+export const qcLearningsCache = {
+  get(slug) { return _qcCacheGet.get(slug) || null; },
+  set(slug, verdictCount, bullets) { _qcCacheSet.run(slug, verdictCount, JSON.stringify(bullets)); },
 };
 
 // ── audio_tracks ──────────────────────────────────────────────────────────────
