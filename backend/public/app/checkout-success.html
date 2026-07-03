@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>You're in · Phantom</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="assets/phantom-logo.svg">
+<link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/track.js"></script>
+</head>
+<body>
+
+<main class="section" style="min-height:100dvh; display:grid; place-items:center; padding:20px">
+  <div class="card card-pad" style="max-width:480px; width:100%; padding:36px; text-align:center">
+    <img class="mark" src="assets/phantom-logo.svg" alt="" style="width:52px; height:52px; filter:drop-shadow(0 6px 18px var(--accent-glow)); margin-bottom:14px">
+    <h1 style="font-family:var(--display); color:#fff; margin:0 0 8px" id="title">Confirming your payment…</h1>
+    <p class="muted" id="detail">One moment.</p>
+    <div id="nextSteps" style="display:none; margin-top:18px; text-align:left; color:var(--text-2); font-size:.9rem; line-height:1.7">
+      <strong style="color:#fff">What happens now</strong>
+      <ol style="margin:8px 0 0; padding-left:20px">
+        <li>We cast your six Phantoms from your brand DNA</li>
+        <li>Campaigns + a month of reels &amp; posts go into production</li>
+        <li>You review everything — flag anything, we regenerate</li>
+      </ol>
+      <p class="dim" style="font-size:.8rem; margin-top:12px">Content production arrives in the next build phase — this run verified the funnel end-to-end.</p>
+    </div>
+  </div>
+</main>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const intakeId = params.get('intake');
+  const isMock = params.get('mock') === '1';
+  if (!intakeId) location.replace('index.html');
+
+  async function confirm() {
+    if (isMock) {
+      await fetch('/api/intake/' + encodeURIComponent(intakeId) + '/mock-pay', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+        body: JSON.stringify({ session: params.get('session') }),
+      }).catch(() => {});
+    }
+    for (let i = 0; i < 12; i++) {
+      const d = await (await fetch('/api/intake/' + encodeURIComponent(intakeId) + '/status', { credentials: 'same-origin' })).json();
+      if (d.entitled) {
+        document.getElementById('title').textContent = 'Payment confirmed — the Phantoms are moving.';
+        document.getElementById('detail').textContent = d.business_name + ' · ' + (d.plan || 'plan active');
+        document.getElementById('nextSteps').style.display = 'block';
+        track('funnel.completed', { plan: d.plan, mock: isMock });
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 2500));
+    }
+    document.getElementById('title').textContent = 'Payment received — confirmation is lagging';
+    document.getElementById('detail').textContent = 'Stripe usually confirms within a minute. This page is safe to refresh.';
+  }
+  confirm();
+</script>
+
+</body>
+</html>

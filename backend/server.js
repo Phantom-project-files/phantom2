@@ -23,7 +23,14 @@ import { logEvent, recentLogs } from './lib/logs.js';
 import { readAdminFromCookie, requireAdmin, requireAdminPage } from './middleware/requireAdmin.js';
 import adminAuthRoutes from './admin/auth-routes.js';
 import { registerScrapeJobs, startIntake } from './lib/scrape/runner.js';
-import { intakes, scrapeSources, tenants } from './lib/db.js';
+import { intakes, scrapeSources, tenants, purchases } from './lib/db.js';
+import { registerValuePropJobs } from './lib/valueprop.js';
+import { registerEmailJobs } from './lib/email.js';
+import { createCheckout, markIntakePaid, verifyStripeSignature, handleStripeEvent, paymentsMode } from './lib/payments.js';
+import { TIERS, TIER_CONFIG, TIER_DISPLAY, isValidTier } from './lib/tiers.js';
+import { isEntitled } from './lib/entitlement.js';
+import { readUserFromCookie, requireUserOrAdmin } from './middleware/requireUser.js';
+import googleAuthRoutes from './auth/google-routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
@@ -32,6 +39,8 @@ const BOOT_TS = Date.now();
 const app = express();
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false })); // CSP tightened when the funnel pages land
+// Stripe webhook needs the RAW body for signature verification — mount before express.json.
+app.use('/webhook/stripe', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 
@@ -76,6 +85,24 @@ app.post('/webhook/fal', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── stripe webhook (raw body; signature-verified when a secret is set) ───────
+app.post('/webhook/stripe', (req, res) => {
+  try {
+    const raw = req.body instanceof Buffer ? req.body.toString('utf8') : JSON.stringify(req.body);
+    const sig = verifyStripeSignature(raw, req.get('stripe-signature'));
+    if (!sig.ok) {
+      logEvent({ level: 'warn', event: 'stripe.webhook_rejected', message: sig.error });
+      return res.status(400).json({ success: false, error: sig.error });
+    }
+    if (sig.unsigned) logEvent({ level: 'warn', event: 'stripe.webhook_unsigned', message: 'STRIPE_WEBHOOK_SECRET not set — accepting unsigned (dev only)' });
+    const result = handleStripeEvent(JSON.parse(raw));
+    res.json({ received: true, ...result });
+  } catch (err) {
+    logEvent({ level: 'error', event: 'stripe.webhook_error', message: err.message });
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ── local-storage streamer (STORAGE_BACKEND=local signed URLs resolve here) ──
 app.get('/api/media/local/:token', (req, res) => {
   const hit = storage._readLocal(req.params.token);
@@ -104,6 +131,94 @@ app.use((req, res, next) => {
 // ── operator auth + console ──────────────────────────────────────────────────
 const loginLimiter = rateLimit({ windowMs: 15 * 60_000, max: 30, standardHeaders: false, legacyHeaders: false });
 app.use('/admin/auth', loginLimiter, adminAuthRoutes);
+app.use('/auth/google', googleAuthRoutes);   // includes POST /auth/google/logout
+
+// ── funnel APIs — registered AFTER the gate on purpose: under COMING_SOON=1
+// only operators reach these (no anonymous scrape/LLM spend); at launch
+// (COMING_SOON=0) they are public. /webhook/* and /api/events stay allowlisted.
+const intakeLimiter = rateLimit({ windowMs: 15 * 60_000, max: 10, standardHeaders: false, legacyHeaders: false });
+app.post('/api/intake', intakeLimiter, (req, res) => {
+  try {
+    const { business_name, website } = req.body || {};
+    if (!business_name || !website) return res.status(400).json({ success: false, error: 'business_name and website required' });
+    const { intake, tenant } = startIntake({ businessName: String(business_name).slice(0, 120), website: String(website).slice(0, 300) });
+    res.json({ success: true, intake_id: intake.id, tenant_slug: tenant.slug });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/intake/:id/status', (req, res) => {
+  const intake = intakes.byId(req.params.id);
+  if (!intake) return res.status(404).json({ success: false, error: 'not found' });
+  res.json({
+    success: true,
+    id: intake.id,
+    business_name: intake.business_name,
+    status: intake.status,
+    value_prop: intake.value_prop ? JSON.parse(intake.value_prop) : null,
+    plan: intake.plan,
+    payment_status: intake.payment_status,
+    entitled: isEntitled(intake),
+    claimed: !!intake.claimed_user_id,
+  });
+});
+
+app.post('/api/intake/:id/plan', (req, res) => {
+  const intake = intakes.byId(req.params.id);
+  if (!intake) return res.status(404).json({ success: false, error: 'not found' });
+  const plan = String(req.body?.plan || '');
+  if (!isValidTier(plan)) return res.status(400).json({ success: false, error: `plan must be one of ${TIERS.join('|')}` });
+  intakes.patch(intake.id, { plan });
+  events.record({ tenantSlug: intake.tenant_slug, name: 'plan.selected', props: { intakeId: intake.id, plan } });
+  res.json({ success: true, plan });
+});
+
+// Checkout requires an identity: a Google-signed customer OR the operator (demo path).
+app.post('/api/intake/:id/checkout', requireUserOrAdmin, async (req, res) => {
+  try {
+    const intake = intakes.byId(req.params.id);
+    if (!intake) return res.status(404).json({ success: false, error: 'not found' });
+    const plan = String(req.body?.plan || intake.plan || '');
+    if (!isValidTier(plan)) return res.status(400).json({ success: false, error: 'select a plan first' });
+    if (isEntitled(intake)) return res.json({ success: true, already_paid: true, url: `/app/checkout-success.html?intake=${intake.id}` });
+    if (plan !== intake.plan) intakes.patch(intake.id, { plan });
+    const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    const session = await createCheckout({ intake: intakes.byId(intake.id), plan, baseUrl });
+    events.record({ tenantSlug: intake.tenant_slug, name: 'checkout.started', props: { intakeId: intake.id, plan, mock: !!session.mock } });
+    res.json({ success: true, url: session.url, mock: !!session.mock });
+  } catch (err) {
+    logEvent({ level: 'error', event: 'checkout.error', message: err.message });
+    res.status(502).json({ success: false, error: err.message });
+  }
+});
+
+// Mock-mode completion: checkout-success lands with ?mock=1 → confirm here.
+app.post('/api/intake/:id/mock-pay', requireUserOrAdmin, (req, res) => {
+  if (paymentsMode() !== 'mock') return res.status(400).json({ success: false, error: 'not in mock payments mode' });
+  const intake = markIntakePaid(req.params.id, { via: 'mock', sessionId: req.body?.session || null });
+  res.json({ success: true, payment_status: intake.payment_status });
+});
+
+app.get('/api/tiers', (_req, res) => {
+  res.json({ success: true, tiers: TIERS.map((t) => ({ key: t, ...TIER_CONFIG[t], ...TIER_DISPLAY[t] })) });
+});
+
+app.get('/api/config', (req, res) => {
+  res.json({
+    success: true,
+    google_oauth: !!process.env.GOOGLE_CLIENT_ID,
+    payments_mode: paymentsMode(),
+    is_admin: !!readAdminFromCookie(req),
+  });
+});
+
+app.get('/api/me', (req, res) => {
+  const user = readUserFromCookie(req);
+  if (!user) return res.status(401).json({ success: false, error: 'no session' });
+  res.json({ success: true, user });
+});
+
 
 // Admin HTML pages need a session even when COMING_SOON=0 (login page excepted).
 app.use((req, res, next) => {
@@ -170,6 +285,18 @@ app.get('/api/admin/intakes', requireAdmin, (_req, res) => {
   res.json({ success: true, intakes: list });
 });
 
+// Admin override (BPMN requirement): skip OAuth + Stripe, unlock the rest of the
+// funnel/pipeline exactly as a paid customer would experience it.
+app.post('/api/admin/intake/:id/override', requireAdmin, (req, res) => {
+  try {
+    const plan = isValidTier(req.body?.plan) ? req.body.plan : 'premium';
+    const intake = markIntakePaid(req.params.id, { via: 'admin_override', plan });
+    res.json({ success: true, intake, entitled: isEntitled(intake) });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 app.get('/api/admin/intake/:id', requireAdmin, async (req, res) => {
   const intake = intakes.byId(req.params.id);
   if (!intake) return res.status(404).json({ success: false, error: 'not found' });
@@ -205,6 +332,8 @@ app.use((err, req, res, _next) => {
 
 // ── boot ──────────────────────────────────────────────────────────────────────
 registerScrapeJobs();
+registerValuePropJobs();
+registerEmailJobs();
 jobsWorker.start();
 setInterval(() => { try { adminSessions.purgeExpired(); } catch {} }, 3600_000).unref();
 

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Phantom</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="assets/phantom-logo.svg">
+<link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/track.js"></script>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="index.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom</a>
+  </div>
+</header>
+
+<main class="section" style="min-height:calc(100dvh - 64px); display:grid; place-items:center; padding:20px">
+  <div class="card card-pad" style="max-width:420px; width:100%; padding:32px; text-align:center">
+    <img class="mark" src="assets/phantom-logo.svg" alt="" style="width:40px; height:40px; margin-bottom:12px">
+    <h1 class="h3" style="font-size:1.4rem; margin:0 0 6px">Create your account</h1>
+    <p class="muted" style="margin:0 0 22px">One click — we use Google so there's no password to lose.</p>
+
+    <a class="btn btn-primary btn-block" id="googleBtn" style="height:50px; display:flex; align-items:center; justify-content:center; gap:10px">
+      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#fff" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
+      Continue with Google
+    </a>
+
+    <div id="notConfigured" style="display:none; margin-top:16px; padding:12px; border:1px solid rgba(255,180,84,.35); border-radius:10px; color:#ffb454; font-size:.82rem; text-align:left">
+      Google sign-in isn't configured on this environment yet (needs GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).
+      Operators: use the console's <strong>Override</strong> on this intake, then return to checkout.
+    </div>
+    <div id="oauthError" class="dim" style="margin-top:12px; font-size:.82rem; color:var(--danger,#ff5470)"></div>
+  </div>
+</main>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const intakeId = params.get('intake');
+  const plan = params.get('plan') || '';
+  const next = '/app/checkout.html?intake=' + encodeURIComponent(intakeId || '') + (plan ? '&plan=' + encodeURIComponent(plan) : '');
+
+  document.getElementById('googleBtn').href = '/auth/google/start?next=' + encodeURIComponent(next);
+  document.getElementById('googleBtn').addEventListener('click', () => track('oauth.started', { plan }));
+
+  const err = params.get('oauth_error');
+  if (err === 'not_configured') {
+    document.getElementById('googleBtn').style.opacity = '.45';
+    document.getElementById('googleBtn').style.pointerEvents = 'none';
+    document.getElementById('notConfigured').style.display = 'block';
+  } else if (err) {
+    document.getElementById('oauthError').textContent = 'Google sign-in failed: ' + err + ' — try again.';
+  }
+</script>
+
+</body>
+</html>

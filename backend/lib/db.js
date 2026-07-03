@@ -119,6 +119,82 @@ export const adminSessions = {
   purgeExpired() { return _sessionPurge.run().changes; },
 };
 
+// ── users / orgs / user_sessions (Google OAuth customers) ────────────────────
+const _userByGoogleSub = db.prepare('SELECT * FROM users WHERE google_sub = ?');
+const _userByEmail = db.prepare('SELECT * FROM users WHERE email = ?');
+const _userById = db.prepare('SELECT * FROM users WHERE id = ?');
+const _userInsert = db.prepare(`
+  INSERT INTO users (org_id, email, name, google_sub, avatar_url, last_login_at)
+  VALUES (NULL, ?, ?, ?, ?, strftime('%s','now'))
+`);
+const _userAttachGoogle = db.prepare(`
+  UPDATE users SET google_sub = ?, name = COALESCE(?, name), avatar_url = COALESCE(?, avatar_url),
+                   last_login_at = strftime('%s','now') WHERE id = ?
+`);
+const _userTouch = db.prepare("UPDATE users SET last_login_at = strftime('%s','now'), name = COALESCE(?, name), avatar_url = COALESCE(?, avatar_url) WHERE id = ?");
+const _userSetOrg = db.prepare('UPDATE users SET org_id = ? WHERE id = ?');
+
+export const users = {
+  byId(id) { return _userById.get(id) || null; },
+  upsertFromGoogle({ sub, email, name = null, picture = null }) {
+    const lc = String(email).toLowerCase();
+    let row = _userByGoogleSub.get(sub);
+    if (row) { _userTouch.run(name, picture, row.id); return _userById.get(row.id); }
+    row = _userByEmail.get(lc);
+    if (row) { _userAttachGoogle.run(sub, name, picture, row.id); return _userById.get(row.id); }
+    const r = _userInsert.run(lc, name, sub, picture);
+    return _userById.get(r.lastInsertRowid);
+  },
+  setOrg(userId, orgId) { _userSetOrg.run(orgId, userId); },
+};
+
+const _orgInsert = db.prepare('INSERT INTO orgs (name) VALUES (?)');
+const _orgById = db.prepare('SELECT * FROM orgs WHERE id = ?');
+export const orgs = {
+  create(name) { const r = _orgInsert.run(name); return _orgById.get(r.lastInsertRowid); },
+  byId(id) { return _orgById.get(id) || null; },
+};
+
+const _usessionInsert = db.prepare('INSERT INTO user_sessions (id, user_id, expires_at, ip, user_agent) VALUES (?, ?, ?, ?, ?)');
+const _usessionFind = db.prepare(`
+  SELECT s.*, u.email AS user_email, u.name AS user_name, u.org_id AS user_org_id
+    FROM user_sessions s JOIN users u ON u.id = s.user_id
+   WHERE s.id = ? AND s.expires_at > strftime('%s','now')
+`);
+const _usessionDelete = db.prepare('DELETE FROM user_sessions WHERE id = ?');
+export const userSessions = {
+  create({ id, userId, ttlSeconds, ip = null, userAgent = null }) {
+    _usessionInsert.run(id, userId, now() + ttlSeconds, ip, userAgent);
+    return { id };
+  },
+  find(id) { return _usessionFind.get(id) || null; },
+  destroy(id) { _usessionDelete.run(id); },
+};
+
+// ── purchases ─────────────────────────────────────────────────────────────────
+const _purchaseInsert = db.prepare(`
+  INSERT INTO purchases (intake_id, tenant_slug, org_id, plan, amount_usd, recurring, stripe_session_id)
+  VALUES (@intake_id, @tenant_slug, @org_id, @plan, @amount_usd, @recurring, @stripe_session_id)
+`);
+const _purchaseBySession = db.prepare('SELECT * FROM purchases WHERE stripe_session_id = ?');
+const _purchaseMarkPaid = db.prepare(`
+  UPDATE purchases SET status = ?, paid_at = strftime('%s','now') WHERE id = ?
+`);
+const _purchasesByIntake = db.prepare('SELECT * FROM purchases WHERE intake_id = ? ORDER BY id DESC');
+
+export const purchases = {
+  create({ intakeId, tenantSlug, orgId = null, plan, amountUsd, recurring, stripeSessionId = null }) {
+    const r = _purchaseInsert.run({
+      intake_id: intakeId, tenant_slug: tenantSlug, org_id: orgId, plan,
+      amount_usd: amountUsd, recurring: recurring ? 1 : 0, stripe_session_id: stripeSessionId,
+    });
+    return r.lastInsertRowid;
+  },
+  bySessionId(sid) { return _purchaseBySession.get(sid) || null; },
+  markPaid(id, status = 'paid') { _purchaseMarkPaid.run(status, id); },
+  byIntake(intakeId) { return _purchasesByIntake.all(intakeId); },
+};
+
 // ── events (user journey) ─────────────────────────────────────────────────────
 const _eventInsert = db.prepare(`
   INSERT INTO events (session_key, org_id, user_id, tenant_slug, name, path, props, ip, user_agent)
@@ -300,6 +376,12 @@ const _intakePatch = db.prepare(`
                      llm_calls = COALESCE(@llm_calls, llm_calls),
                      flags = COALESCE(@flags, flags),
                      error = COALESCE(@error, error),
+                     value_prop = COALESCE(@value_prop, value_prop),
+                     plan = COALESCE(@plan, plan),
+                     payment_status = COALESCE(@payment_status, payment_status),
+                     paid_at = COALESCE(@paid_at, paid_at),
+                     org_id = COALESCE(@org_id, org_id),
+                     claimed_user_id = COALESCE(@claimed_user_id, claimed_user_id),
                      updated_at = strftime('%s','now')
    WHERE id = @id
 `);
@@ -311,10 +393,15 @@ export const intakes = {
   },
   byId(id) { return _intakeById.get(id) || null; },
   list(limit = 50) { return _intakeList.all(limit); },
-  patch(id, { status = null, scrapeKey = null, llmCalls = null, flags = null, error = null } = {}) {
+  patch(id, { status = null, scrapeKey = null, llmCalls = null, flags = null, error = null,
+              valueProp = null, plan = null, paymentStatus = null, paidAt = null,
+              orgId = null, claimedUserId = null } = {}) {
     _intakePatch.run({
       id, status, scrape_key: scrapeKey, llm_calls: llmCalls,
       flags: flags ? JSON.stringify(flags) : null, error,
+      value_prop: valueProp ? JSON.stringify(valueProp) : null,
+      plan, payment_status: paymentStatus, paid_at: paidAt,
+      org_id: orgId, claimed_user_id: claimedUserId,
     });
     return _intakeById.get(id);
   },

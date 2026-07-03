@@ -123,6 +123,8 @@ export async function runScrape({ intakeId }) {
   intakes.patch(intakeId, { status: finalStatus, scrapeKey: key, llmCalls, flags });
   events.record({ tenantSlug: slug, name: 'scrape.completed', props: { intakeId, status: finalStatus, llmCalls, sources: sources.length } });
   logEvent({ event: 'scrape.completed', tenantSlug: slug, refId: intakeId, message: `${finalStatus} — ${pages.length} pages, ${llmCalls} LLM calls, ${sources.length} sources` });
+  // Funnel next step: build the 3-frame value proposition off this scrape.
+  jobs.enqueue({ kind: 'value_prop', tenantSlug: slug, refKind: 'intake', refId: intakeId, payload: { intakeId }, maxAttempts: 2 });
   return { ok: true, status: finalStatus, scrapeKey: key, llmCalls };
 }
 

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your proposal · Phantom</title>
+<link rel="icon" href="assets/phantom-logo.svg">
+<link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/track.js"></script>
+<style>
+  .stage { max-width: 880px; margin: 0 auto; padding: 40px 20px 80px; }
+  /* scraping progress */
+  .scanning { text-align: center; padding: 80px 20px; }
+  .scanning .pulse-ring { width: 72px; height: 72px; margin: 0 auto 22px; border-radius: 50%;
+    border: 2px solid var(--accent, #7c5cff); animation: ring 1.6s ease-out infinite; }
+  @keyframes ring { 0% { transform: scale(.7); opacity: 1 } 100% { transform: scale(1.5); opacity: 0 } }
+  .scanning .step { color: var(--text-2); font-size: .9rem; min-height: 1.4em; }
+  /* 16:9 value-prop frames */
+  .frame { aspect-ratio: 16/9; border-radius: 18px; border: 1px solid var(--hairline);
+    background: linear-gradient(160deg, rgba(124,92,255,.14), rgba(10,11,16,.9) 60%);
+    padding: clamp(22px, 5vw, 56px); display: flex; flex-direction: column; justify-content: center;
+    gap: 12px; margin-bottom: 22px; position: relative; overflow: hidden; }
+  .frame::after { content: attr(data-n) " / 3"; position: absolute; top: 16px; right: 20px;
+    font-family: var(--mono); font-size: .7rem; color: var(--text-3); }
+  .frame .eyebrow { font-size: .74rem; letter-spacing: .3em; text-transform: uppercase; color: var(--accent-2, #9d86ff); }
+  .frame h2 { font-family: var(--display); font-size: clamp(1.3rem, 3.6vw, 2.2rem); margin: 0; color: #fff; line-height: 1.1; }
+  .frame p { color: var(--text-2); max-width: 56ch; margin: 0; font-size: clamp(.9rem, 1.8vw, 1.02rem); }
+  .frame .stat { font-family: var(--display); font-size: clamp(1.4rem, 4vw, 2.4rem); color: var(--teal, #36e2c4); }
+  .cta-row { text-align: center; margin-top: 30px; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="index.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom</a>
+  </div>
+</header>
+
+<main class="stage">
+  <div id="scanning" class="scanning">
+    <div class="pulse-ring"></div>
+    <h2 style="font-family:var(--display); color:#fff; margin:0 0 10px" id="scanTitle">Reading your brand…</h2>
+    <div class="step" id="scanStep">Fetching your website</div>
+  </div>
+
+  <div id="frames" style="display:none"></div>
+
+  <div id="failed" style="display:none; text-align:center; padding:60px 20px">
+    <h2 style="font-family:var(--display); color:#fff">We couldn't reach that site</h2>
+    <p class="dim" id="failReason"></p>
+    <a class="btn" href="index.html">Try another website</a>
+  </div>
+</main>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const intakeId = params.get('intake');
+  if (!intakeId) location.replace('index.html');
+
+  const STEPS = ['Fetching your website', 'Reading your products', 'Finding your socials', 'Studying your audience', 'Writing your proposal'];
+  let stepIdx = 0;
+  const stepTimer = setInterval(() => {
+    stepIdx = (stepIdx + 1) % STEPS.length;
+    document.getElementById('scanStep').textContent = STEPS[stepIdx];
+  }, 2600);
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  function render(vp, businessName) {
+    clearInterval(stepTimer);
+    document.getElementById('scanning').style.display = 'none';
+    const el = document.getElementById('frames');
+    el.style.display = 'block';
+    el.innerHTML = '<p class="dim mono" style="font-size:.75rem; letter-spacing:.1em; text-transform:uppercase">Proposal · ' + esc(businessName) + '</p>'
+      + vp.frames.map((f, i) =>
+        '<section class="frame" data-n="' + (i + 1) + '">'
+        + '<span class="eyebrow">' + esc(f.eyebrow) + '</span>'
+        + '<h2>' + esc(f.headline) + '</h2>'
+        + (f.stat ? '<div class="stat">' + esc(f.stat) + '</div>' : '')
+        + '<p>' + esc(f.body) + '</p>'
+        + '</section>').join('')
+      + '<div class="cta-row"><a class="btn btn-primary" style="height:52px; padding:0 34px" '
+      + 'href="plans.html?intake=' + encodeURIComponent(intakeId) + '" '
+      + 'onclick="track(\'proposal.cta_clicked\')">See plans →</a></div>';
+    track('proposal.viewed');
+  }
+
+  async function poll() {
+    try {
+      const r = await fetch('/api/intake/' + encodeURIComponent(intakeId) + '/status', { credentials: 'same-origin' });
+      if (r.status === 404) throw new Error('proposal not found');
+      const d = await r.json();
+      if (d.value_prop) return render(d.value_prop, d.business_name);
+      if (d.status === 'failed') {
+        clearInterval(stepTimer);
+        document.getElementById('scanning').style.display = 'none';
+        document.getElementById('failed').style.display = 'block';
+        document.getElementById('failReason').textContent = 'The site refused our reader. A human will take a look — or try a different URL.';
+        track('proposal.scrape_failed');
+        return;
+      }
+      setTimeout(poll, 2500);
+    } catch (e) {
+      clearInterval(stepTimer);
+      document.getElementById('scanning').style.display = 'none';
+      document.getElementById('failed').style.display = 'block';
+      document.getElementById('failReason').textContent = e.message;
+    }
+  }
+  poll();
+</script>
+
+</body>
+</html>

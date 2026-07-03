@@ -63,7 +63,9 @@
     </div>
 
     <div class="card card-pad panel">
-      <h2>Scraper sandbox <span class="dim" style="font-size:.75rem; font-weight:400">Agent-Scraper · Phase 1</span></h2>
+      <h2>Funnel &amp; scraper sandbox
+        <span style="font-weight:400"><a href="index.html" class="dim" style="font-size:.78rem" target="_blank">open funnel ↗</a></span>
+      </h2>
       <form id="intakeForm" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px">
         <input class="input" name="business_name" placeholder="Business name" required style="flex:1; min-width:160px">
         <input class="input" name="website" placeholder="Website (example.com)" required style="flex:2; min-width:220px">
@@ -136,13 +138,17 @@ async function refresh() {
           const chips = i.sources.map((s) =>
             '<span class="chip ' + esc(s.status) + '" title="' + esc(s.note || '') + '">' + esc(s.source) + ': ' + esc(s.status) + '</span>').join('');
           const flags = i.flags ? JSON.parse(i.flags) : [];
+          const payChip = i.payment_status === 'unpaid'
+            ? '<button class="btn" style="height:26px; font-size:.7rem; padding:0 10px" onclick="overrideIntake(\'' + esc(i.id) + '\')">Override → paid</button>'
+            : '<span class="chip scraped">' + esc(i.payment_status) + (i.plan ? ' · ' + esc(i.plan) : '') + '</span>';
           return '<div class="intake-row">'
             + '<div class="top"><strong>' + esc(i.business_name) + '</strong>'
             + '<span class="dim mono" style="font-size:.72rem">' + esc(i.tenant_slug) + ' · ' + esc(i.status)
             + (i.llm_calls ? ' · ' + i.llm_calls + ' llm calls' : '')
+            + (i.value_prop ? ' · <a href="/app/proposal.html?intake=' + esc(i.id) + '" target="_blank">proposal</a>' : '')
             + (i.scrape_key ? ' · <a href="/api/admin/intake/' + esc(i.id) + '" target="_blank">scrape.json</a>' : '')
             + '</span></div>'
-            + '<div>' + (chips || '<span class="dim" style="font-size:.78rem">queued…</span>') + '</div>'
+            + '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">' + (chips || '<span class="dim" style="font-size:.78rem">queued…</span>') + payChip + '</div>'
             + (flags.length ? '<div class="dim" style="font-size:.74rem; margin-top:4px">⚑ ' + flags.map(esc).join(' · ') + '</div>' : '')
             + '</div>';
         }).join('');
@@ -156,6 +162,14 @@ async function refresh() {
         ]));
   } catch (e) { console.error(e); }
 }
+
+window.overrideIntake = async (id) => {
+  if (!confirm('Mark this intake paid via admin override? (skips OAuth + Stripe; unlocks generation)')) return;
+  const r = await j('/api/admin/intake/' + id + '/override', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+  });
+  if (!r.success) alert(r.error); else refresh();
+};
 
 document.getElementById('intakeForm').addEventListener('submit', async (e) => {
   e.preventDefault();

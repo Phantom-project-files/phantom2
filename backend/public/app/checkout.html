@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkout · Phantom</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="assets/phantom-logo.svg">
+<link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/track.js"></script>
+</head>
+<body>
+
+<main class="section" style="min-height:100dvh; display:grid; place-items:center; padding:20px">
+  <div class="card card-pad" style="max-width:420px; width:100%; padding:32px; text-align:center">
+    <img class="mark" src="assets/phantom-logo.svg" alt="" style="width:40px; height:40px; margin-bottom:12px">
+    <h1 class="h3" style="font-size:1.3rem" id="title">Taking you to secure checkout…</h1>
+    <p class="muted" id="detail">Payments are handled by Stripe.</p>
+  </div>
+</main>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const intakeId = params.get('intake');
+  const plan = params.get('plan');
+  if (!intakeId) location.replace('index.html');
+
+  (async () => {
+    try {
+      const r = await fetch('/api/intake/' + encodeURIComponent(intakeId) + '/checkout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+        body: JSON.stringify(plan ? { plan } : {}),
+      });
+      const d = await r.json();
+      if (r.status === 401 && d.need_auth) {
+        location.replace('signup.html?intake=' + encodeURIComponent(intakeId) + (plan ? '&plan=' + encodeURIComponent(plan) : ''));
+        return;
+      }
+      if (!d.success) throw new Error(d.error || 'checkout failed');
+      location.replace(d.url);
+    } catch (err) {
+      document.getElementById('title').textContent = 'Checkout hit a snag';
+      document.getElementById('detail').textContent = err.message + ' — go back to plans and try again.';
+      track('checkout.error', { error: String(err.message).slice(0, 120) });
+    }
+  })();
+</script>
+
+</body>
+</html>

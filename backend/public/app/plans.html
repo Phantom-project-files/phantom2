@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plans · Phantom</title>
+<link rel="icon" href="assets/phantom-logo.svg">
+<link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/track.js"></script>
+<style>
+  .stage { max-width: 1080px; margin: 0 auto; padding: 40px 20px 80px; }
+  .plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin-top: 26px; }
+  .plan { border: 1px solid var(--hairline); border-radius: 16px; padding: 24px 20px; position: relative;
+    background: var(--surface-2, rgba(255,255,255,.02)); display: flex; flex-direction: column; gap: 12px;
+    transition: border-color .15s ease, transform .15s ease; }
+  .plan:hover { border-color: rgba(124,92,255,.55); transform: translateY(-2px); }
+  .plan .badge { position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
+    background: linear-gradient(180deg, var(--accent-2,#9d86ff), var(--accent,#7c5cff)); color: #fff;
+    font-size: .68rem; font-weight: 600; letter-spacing: .06em; padding: 4px 12px; border-radius: 999px; }
+  .plan h3 { font-family: var(--display); margin: 0; color: #fff; font-size: 1.2rem; }
+  .plan .tagline { color: var(--text-3); font-size: .82rem; min-height: 2.2em; }
+  .plan .price { font-family: var(--display); font-size: 1.5rem; color: #fff; }
+  .plan ul { margin: 0; padding-left: 18px; color: var(--text-2); font-size: .85rem; line-height: 1.6; flex: 1; }
+  .canceled-note { background: rgba(255,180,84,.08); border: 1px solid rgba(255,180,84,.35);
+    border-radius: 10px; padding: 10px 14px; color: #ffb454; font-size: .85rem; margin-top: 16px; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="index.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom</a>
+  </div>
+</header>
+
+<main class="stage">
+  <h1 style="font-family:var(--display); color:#fff; margin:0">Pick your volume</h1>
+  <p class="dim" style="margin-top:8px">Every plan: six brand-built Phantoms, human QC on every piece, regenerate anything you flag.</p>
+  <div id="canceled" class="canceled-note" style="display:none">Checkout was canceled — your plan is saved, pick up where you left off.</div>
+  <div class="plan-grid" id="grid">loading…</div>
+</main>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const intakeId = params.get('intake');
+  if (!intakeId) location.replace('index.html');
+  if (params.get('canceled')) { document.getElementById('canceled').style.display = 'block'; track('checkout.canceled'); }
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  fetch('/api/tiers').then((r) => r.json()).then((d) => {
+    document.getElementById('grid').innerHTML = d.tiers.map((t) =>
+      '<div class="plan">'
+      + (t.badge ? '<span class="badge">' + esc(t.badge) + '</span>' : '')
+      + '<h3>' + esc(t.name) + '</h3>'
+      + '<div class="tagline">' + esc(t.tagline) + '</div>'
+      + '<div class="price">' + esc(t.price_label) + '</div>'
+      + '<ul>' + t.bullets.map((b) => '<li>' + esc(b) + '</li>').join('') + '</ul>'
+      + '<button class="btn btn-primary btn-block" data-plan="' + esc(t.key) + '" style="height:46px">Choose ' + esc(t.name) + '</button>'
+      + '</div>').join('');
+    document.querySelectorAll('[data-plan]').forEach((btn) => btn.addEventListener('click', () => choose(btn.dataset.plan, btn)));
+  });
+
+  async function choose(plan, btn) {
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const r = await fetch('/api/intake/' + encodeURIComponent(intakeId) + '/plan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+        body: JSON.stringify({ plan }),
+      });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error);
+      track('plan.selected', { plan });
+      // Signed in already? straight to checkout. Otherwise OAuth first.
+      const me = await fetch('/api/me', { credentials: 'same-origin' });
+      const cfg = await (await fetch('/api/config', { credentials: 'same-origin' })).json();
+      if (me.ok || cfg.is_admin) location.href = 'checkout.html?intake=' + encodeURIComponent(intakeId) + '&plan=' + encodeURIComponent(plan);
+      else location.href = 'signup.html?intake=' + encodeURIComponent(intakeId) + '&plan=' + encodeURIComponent(plan);
+    } catch (err) {
+      btn.disabled = false; btn.textContent = 'Choose again';
+      alert(err.message);
+    }
+  }
+</script>
+
+</body>
+</html>

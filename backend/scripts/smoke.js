@@ -119,9 +119,15 @@ We sell direct to consumers who care. Come meet the crew and shop the summer dro
 process.env.SCRAPE_OFFLINE = '1';
 process.env.SCRAPE_FIXTURE_HTML = fixture;
 
+process.env.STRIPE_MODE = 'mock';
+process.env.EMAIL_MODE = 'mock';
 const { registerScrapeJobs, startIntake } = await import('../lib/scrape/runner.js');
-const { intakes, scrapeSources } = await import('../lib/db.js');
+const { registerValuePropJobs } = await import('../lib/valueprop.js');
+const { registerEmailJobs } = await import('../lib/email.js');
+const { intakes, scrapeSources, purchases, users, orgs } = await import('../lib/db.js');
 registerScrapeJobs();
+registerValuePropJobs();
+registerEmailJobs();
 
 const { intake, tenant } = startIntake({ businessName: 'Acme Swim', website: 'acme-swim.example' });
 check('intake + tenant minted', !!intake.id && /^acme-swim-/.test(tenant.slug));
@@ -147,8 +153,53 @@ check('scrape.json has taxonomy sections (about/target_market/vertical)',
 check('deterministic layer real (shopify detected, IG handle found)',
   scrapeDoc.crawl.tech.shopify === true && scrapeDoc.social_media.handles.instagram === 'acmeswim');
 
+// ── Phase 2: funnel — value prop → plan → checkout(mock) → paid → email ─────
+await new Promise((r) => setTimeout(r, 1500));   // value_prop job chained after scrape
+const vpIntake = intakes.byId(intake.id);
+const vp = vpIntake.value_prop ? JSON.parse(vpIntake.value_prop) : null;
+check('value_prop job produced exactly 3 frames', vp && vp.frames.length === 3 && !!vp.frames[0].headline);
+
+const { TIERS, TIER_CONFIG } = await import('../lib/tiers.js');
+check('tiers config (4 tiers, BPMN prices + overkill 100/140)',
+  TIERS.length === 4 && TIER_CONFIG.standard.price === 800 && !TIER_CONFIG.standard.recurring
+  && TIER_CONFIG.overkill.price === 4000 && TIER_CONFIG.overkill.reels === 100 && TIER_CONFIG.overkill.posts === 140);
+
+const { isEntitled } = await import('../lib/entitlement.js');
+const { createCheckout, markIntakePaid, handleStripeEvent, verifyStripeSignature } = await import('../lib/payments.js');
+check('unpaid intake is not entitled', isEntitled(vpIntake) === false);
+
+intakes.patch(intake.id, { plan: 'premium' });
+const session = await createCheckout({ intake: intakes.byId(intake.id), plan: 'premium', baseUrl: 'http://localhost:3020' });
+check('mock checkout session + purchase row', session.mock === true && !!purchases.bySessionId(session.id));
+
+// simulate the user having claimed the intake (OAuth) so the payment email has a recipient
+const smokeUser = users.upsertFromGoogle({ sub: 'gsub-smoke', email: 'buyer@example.com', name: 'Buyer' });
+const smokeOrg = orgs.create('Acme Swim');
+users.setOrg(smokeUser.id, smokeOrg.id);
+intakes.patch(intake.id, { orgId: smokeOrg.id, claimedUserId: smokeUser.id });
+
+const hookResult = handleStripeEvent({
+  type: 'checkout.session.completed',
+  data: { object: { id: session.id, metadata: { intake_id: intake.id, plan: 'premium' } } },
+});
+check('stripe webhook event marks intake paid', hookResult.ok === true && isEntitled(intakes.byId(intake.id)));
+check('purchase marked paid', purchases.bySessionId(session.id).status === 'paid');
+
+await new Promise((r) => setTimeout(r, 1200));   // email job drains
+check('payment email delivered (mock)', events.countsSince(0).some((e) => e.name === 'email.sent'));
+
+const override = markIntakePaid(intake.id, { via: 'admin_override', plan: 'ultra' });
+check('admin override path entitles + swaps plan', override.payment_status === 'admin_override' && override.plan === 'ultra');
+
+const sigCheck = verifyStripeSignature('{}', null);
+check('webhook unsigned-dev-mode accepted when no secret', sigCheck.ok === true && sigCheck.unsigned === true);
+process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
+const sigBad = verifyStripeSignature('{}', 't=1,v1=deadbeef');
+delete process.env.STRIPE_WEBHOOK_SECRET;
+check('webhook bad signature rejected when secret set', sigBad.ok === false);
+
 flushLogs();
-check('billing halt logged', recentLogs({ limit: 50 }).some((l) => l.event === 'jobs.billing_halt'));
+check('billing halt logged', recentLogs({ limit: 100 }).some((l) => l.event === 'jobs.billing_halt'));
 
 jobs.stop();
 console.log(failures === 0 ? '\n[smoke] ALL PASS ✅' : `\n[smoke] ${failures} FAILURE(S) ❌`);

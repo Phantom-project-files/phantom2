@@ -57,5 +57,11 @@ social probes, vertical branches (apparel / music_artist), console scraper sandb
 Verified offline (fixture) and against the real internet (allbirds.com: IG public
 metadata scraped, TikTok correctly flagged, Shopify detected).
 
-Next: Phase 2 — Funnel (value prop, pricing, OAuth, Stripe, agent-email skeleton).
+Phase 2 (Funnel) ✅ — 3-frame value proposition auto-built after every scrape, 4
+pricing tiers (BPMN numbers), Google OAuth (OIDC, claims intake→org→tenant), Stripe
+checkout + signature-verified webhook (test-mode verified live), admin override
+(skip OAuth+payment, full pipeline unlock), agent-email skeleton (mock/Resend, stage
+triggers off the events stream), full funnel pages with journey tracking.
+
+Next: Phase 3 — Script-gen (calendar, campaigns, 6 phantoms, briefs).
 Full plan: `docs/PLAN.md`.

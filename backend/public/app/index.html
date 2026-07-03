@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phantom — autonomous content</title>
+<link rel="icon" href="assets/phantom-logo.svg">
+<link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/track.js"></script>
+<style>
+  .hero-wrap { min-height: calc(100dvh - 64px); display: grid; place-items: center; padding: 40px 20px; }
+  .hero-card { max-width: 560px; width: 100%; text-align: center; }
+  .hero-card h1 { font-family: var(--display); font-size: clamp(1.8rem, 4.5vw, 2.6rem); margin: 0 0 10px; color: #fff; }
+  .hero-card p.sub { color: var(--text-2); margin: 0 0 26px; }
+  .start-form { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+  .start-form .lbl { font-size: .72rem; letter-spacing: .1em; color: var(--text-3); font-family: var(--mono); }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="index.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom</a>
+  </div>
+</header>
+
+<main class="hero-wrap">
+  <div class="card card-pad hero-card" style="padding:36px">
+    <img class="mark" src="assets/phantom-logo.svg" alt="" style="width:52px; height:52px; filter:drop-shadow(0 6px 18px var(--accent-glow)); margin-bottom:14px">
+    <h1>Your brand. On autopilot.</h1>
+    <p class="sub">Six AI creators built from your brand DNA — a reel and a post, every day. See what Phantom would do for your business in about a minute.</p>
+
+    <form id="startForm" class="start-form" novalidate>
+      <label class="stack" style="gap:6px">
+        <span class="lbl">BUSINESS NAME</span>
+        <input class="input" name="business_name" placeholder="Acme Swim" required>
+      </label>
+      <label class="stack" style="gap:6px">
+        <span class="lbl">WEBSITE</span>
+        <input class="input" name="website" placeholder="acmeswim.com" required>
+      </label>
+      <div id="msg" class="dim" style="font-size:.85rem; min-height:1.2em"></div>
+      <button class="btn btn-primary btn-block" type="submit" id="goBtn" style="height:50px">Build my proposal →</button>
+    </form>
+  </div>
+</main>
+
+<script>
+  const form = document.getElementById('startForm');
+  const msg = document.getElementById('msg');
+  const btn = document.getElementById('goBtn');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    btn.disabled = true; btn.textContent = 'Starting…'; msg.textContent = '';
+    try {
+      const fd = new FormData(form);
+      track('intake.submitted', { website: fd.get('website') });
+      const r = await fetch('/api/intake', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+        body: JSON.stringify({ business_name: fd.get('business_name'), website: fd.get('website') }),
+      });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error || 'failed to start');
+      location.href = 'proposal.html?intake=' + encodeURIComponent(d.intake_id);
+    } catch (err) {
+      msg.style.color = 'var(--danger, #ff5470)';
+      msg.textContent = err.message;
+      btn.disabled = false; btn.textContent = 'Build my proposal →';
+    }
+  });
+</script>
+
+</body>
+</html>

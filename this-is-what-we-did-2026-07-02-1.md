@@ -93,13 +93,48 @@
   flag); X/FB **partial** (og metadata); YouTube channel resolves post-fix; shopify=true; 18 imgs
   + logo; flag "needs Apify for deep data: tiktok". No server errors.
 
+## Phase 2 — Funnel BUILT + VERIFIED (same session) → v0.3.0
+- **Migration 003:** intakes gain value_prop/plan/payment_status/paid_at/org_id/claimed_user_id;
+  new `purchases` table (stripe_session_id unique, mock_paid status for $0 tests).
+- **`lib/tiers.js`:** BPMN pricing — Standard $800 one-time 30/30 · Premium $1000/mo 30/30 ·
+  Ultra $2000/mo 60/90 · **Overkill $4000/mo 100/140 (sheet wins over v1's 100/200)** + display copy.
+- **`lib/valueprop.js`:** `value_prop` job auto-chained after every scrape — one synthesis-tier call
+  builds the BPMN's 3× 16:9 frames (who they are → social reality w/ real follower data → the
+  Phantom fix); stored on the intake; rendered as styled HTML slides (no image spend in funnel).
+- **`lib/payments.js`:** Stripe via 2 REST calls (no SDK) — checkout sessions (payment vs
+  subscription per tier), webhook w/ HMAC signature verify (length-guard bug caught by smoke:
+  malformed v1 sig crashed timingSafeEqual → would've been a prod 500), STRIPE_MODE=mock for $0.
+  **`markIntakePaid()` = the single unlock path** (webhook, mock, admin override all funnel through).
+- **`lib/email.js`:** agent-email skeleton — `email` job lane, EMAIL_MODE=mock default (logs +
+  `email.sent` journey events; `email.skipped_no_recipient` when intake unclaimed), Resend impl
+  ready behind RESEND_API_KEY. Stage triggers live: welcome_claimed (OAuth), proposal_ready,
+  payment_confirmed.
+- **`auth/google-routes.js`:** v1 OIDC port (3 fetches, state cookie CSRF) adapted to 2.0 claiming —
+  user⇄org⇄intake⇄tenant at callback; `/api/me`; graceful `not_configured` redirect when no
+  GOOGLE_CLIENT_ID. `middleware/requireUser.js` + `requireUserOrAdmin` (operator walks the funnel
+  without Google creds).
+- **Funnel pages** (all include `assets/track.js` journey beacon): index (get-started form) →
+  proposal (scan animation → 3 frames) → plans (4 tier cards) → signup (Google CTA + not-configured
+  fallback) → checkout (redirector) → checkout-success (confirm + poll entitlement).
+- **Console:** intake rows show payment chip + **Override → paid** button (skip OAuth+Stripe,
+  BPMN requirement); proposal link; "open funnel ↗".
+- **Gate fix (live-test catch):** funnel APIs were registered BEFORE the COMING_SOON gate → anon
+  could trigger scrape/LLM spend pre-launch. Moved behind the gate: anon → 503, admin → works,
+  beacon/webhooks stay allowlisted. Verified over HTTP.
+- **Verified:** smoke **33/33 PASS**; live HTTP run: intake → value prop over API → plan →
+  **REAL Stripe test-mode session** (`cs_test_…` at checkout.stripe.com) → simulated webhook →
+  `payment_status=paid`, entitled=true → second intake via **admin override** (ultra) → all 5
+  funnel pages render → journey events show the whole trail (intake.created → scrape.completed →
+  valueprop.ready → plan.selected → checkout.started → funnel.paid) → checkout auth wall 401.
+
 ## Next session
-1. **Phase 2 — Funnel:** value prop (3× 16:9 frames from scrape.json), pricing tiers, Google OAuth,
-   Stripe test-mode checkout, admin overrides, agent-email skeleton (events-stream triggers).
-2. Optional ops: create Fly app `phantom2` + R2 bucket `phantom2-prod` when staging wanted.
+1. **Phase 3 — Script-gen:** plan→quantities+deployment calendar, 5–30 campaign ideas
+   (product/weather/FIFA/world-event/business-event via web-search feed), campaign = reel+post
+   cluster on one visual design, 6 phantoms from scraped personas, per-piece briefs.
+2. Optional ops: Fly app `phantom2` + R2 bucket; GOOGLE_CLIENT_ID/SECRET for live OAuth;
+   Stripe webhook endpoint + STRIPE_WEBHOOK_SECRET when deployed.
 3. Rotate Claude + Fal keys (were plaintext in `Phantom2.0.env.rtf`).
-4. Later scraper rungs: headless-Chrome step (Phase 5 image), Apify adapter behind the
-   `blocked_needs_apify` flags, Wikipedia fallback for dead/blocked sites.
+4. Later scraper rungs: headless-Chrome (Phase 5 image), Apify adapter, Wikipedia fallback.
 
 ## Runbook
 ```bash
