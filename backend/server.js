@@ -22,6 +22,8 @@ import { llm } from './lib/llm.js';
 import { logEvent, recentLogs } from './lib/logs.js';
 import { readAdminFromCookie, requireAdmin, requireAdminPage } from './middleware/requireAdmin.js';
 import adminAuthRoutes from './admin/auth-routes.js';
+import { registerScrapeJobs, startIntake } from './lib/scrape/runner.js';
+import { intakes, scrapeSources, tenants } from './lib/db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
@@ -151,6 +153,38 @@ app.get('/api/admin/logs', requireAdmin, (req, res) => {
   res.json({ success: true, logs: recentLogs({ tenant: req.query.tenant || null, limit: req.query.limit || 100 }) });
 });
 
+// ── Phase 1: Agent-Scraper sandbox (admin-gated until the Phase-2 funnel) ────
+app.post('/api/admin/intake', requireAdmin, (req, res) => {
+  try {
+    const { business_name, website } = req.body || {};
+    if (!business_name || !website) return res.status(400).json({ success: false, error: 'business_name and website required' });
+    const { intake, tenant } = startIntake({ businessName: String(business_name).slice(0, 120), website: String(website).slice(0, 300) });
+    res.json({ success: true, intake, tenant });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/intakes', requireAdmin, (_req, res) => {
+  const list = intakes.list(50).map((i) => ({ ...i, sources: scrapeSources.byIntake(i.id) }));
+  res.json({ success: true, intakes: list });
+});
+
+app.get('/api/admin/intake/:id', requireAdmin, async (req, res) => {
+  const intake = intakes.byId(req.params.id);
+  if (!intake) return res.status(404).json({ success: false, error: 'not found' });
+  let scrapeUrl = null;
+  if (intake.scrape_key) {
+    try { scrapeUrl = await storage.signedGet(intake.tenant_slug, intake.scrape_key, 600); } catch { /* signed URL best-effort */ }
+  }
+  res.json({
+    success: true, intake,
+    tenant: tenants.bySlug(intake.tenant_slug),
+    sources: scrapeSources.byIntake(intake.id),
+    scrape_url: scrapeUrl,
+  });
+});
+
 // ── static (v1 caching lesson: HTML/JS/CSS ship no-cache so deploys are live) ─
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders(res, fp) {
@@ -170,6 +204,7 @@ app.use((err, req, res, _next) => {
 });
 
 // ── boot ──────────────────────────────────────────────────────────────────────
+registerScrapeJobs();
 jobsWorker.start();
 setInterval(() => { try { adminSessions.purgeExpired(); } catch {} }, 3600_000).unref();
 

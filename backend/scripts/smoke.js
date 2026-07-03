@@ -97,6 +97,56 @@ check('failed job re-queued with backoff', retryRow.attempts === 1 && retryRow.s
 costEvents.record({ provider: 'fal', operation: 'smoke', usd: 0.01 });
 check('cost event recorded', costEvents.totalsSince(0).some((r) => r.provider === 'fal'));
 
+// ── Phase 1: offline end-to-end scrape (fixture HTML + mock LLM = $0) ───────
+const fixture = path.join(scratch, 'fixture.html');
+fs.writeFileSync(fixture, `<!doctype html><html><head>
+<title>Acme Swim | Sustainable swimwear</title>
+<meta name="description" content="Acme Swim makes sustainable swimwear in Los Angeles.">
+<meta property="og:site_name" content="Acme Swim">
+<meta property="og:image" content="https://acme.example/hero.jpg">
+<link rel="icon" href="/favicon.png">
+</head><body>
+<h1>Swimwear that loves the ocean back</h1>
+<h2>Our story</h2>
+<p>Founded in 2021 in Los Angeles, Acme Swim solves fast-fashion waste with recycled fabrics.
+We sell direct to consumers who care. Come meet the crew and shop the summer drop.</p>
+<img src="https://cdn.shopify.com/acme/product-one.jpg">
+<a href="/products/one-piece">One-piece</a>
+<a href="/about">About us</a>
+<a href="https://www.instagram.com/acmeswim">IG</a>
+<a href="https://www.tiktok.com/@acmeswim">TikTok</a>
+</body></html>`);
+process.env.SCRAPE_OFFLINE = '1';
+process.env.SCRAPE_FIXTURE_HTML = fixture;
+
+const { registerScrapeJobs, startIntake } = await import('../lib/scrape/runner.js');
+const { intakes, scrapeSources } = await import('../lib/db.js');
+registerScrapeJobs();
+
+const { intake, tenant } = startIntake({ businessName: 'Acme Swim', website: 'acme-swim.example' });
+check('intake + tenant minted', !!intake.id && /^acme-swim-/.test(tenant.slug));
+
+await new Promise((r) => setTimeout(r, 2500));
+const doneIntake = intakes.byId(intake.id);
+check(`scrape job completed (status=${doneIntake.status})`, ['scraped', 'partial'].includes(doneIntake.status));
+check('scrape.json persisted to storage', !!doneIntake.scrape_key && doneIntake.scrape_key.startsWith(`tenants/${tenant.slug}/scrapes/`));
+check('llm budget counted', doneIntake.llm_calls >= 5);
+
+const srcRows = scrapeSources.byIntake(intake.id);
+const bySource = Object.fromEntries(srcRows.map((s) => [s.source, s.status]));
+check('website source scraped', bySource.website === 'scraped');
+check('social probes skipped offline (honest flag)', bySource.instagram === 'skipped' && bySource.tiktok === 'skipped');
+
+const scrapeUrl = await storage.signedGet(tenant.slug, doneIntake.scrape_key);
+check('scrape artifact signed URL mints', scrapeUrl.startsWith('/api/media/local/'));
+const scrapeDoc = JSON.parse(fs.readFileSync(
+  path.join(path.dirname(new URL('../lib/db.js', import.meta.url).pathname), '..', 'data', 'media', doneIntake.scrape_key), 'utf8'));
+check('scrape.json has taxonomy sections (about/target_market/vertical)',
+  !!scrapeDoc.about && !!scrapeDoc.target_market && !!scrapeDoc.vertical
+  && scrapeDoc.about.business_name === 'Mock Brand');
+check('deterministic layer real (shopify detected, IG handle found)',
+  scrapeDoc.crawl.tech.shopify === true && scrapeDoc.social_media.handles.instagram === 'acmeswim');
+
 flushLogs();
 check('billing halt logged', recentLogs({ limit: 50 }).some((l) => l.event === 'jobs.billing_halt'));
 

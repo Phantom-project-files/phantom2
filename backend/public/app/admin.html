@@ -22,6 +22,15 @@
   .phases li { margin:4px 0; color:var(--text-2); font-size:.88rem; }
   .phases li.done { color:#36e2c4; }
   .phases li.now { color:#fff; font-weight:600; }
+  .chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:.68rem; font-family:var(--mono);
+          border:1px solid var(--hairline); margin:2px 3px 2px 0; white-space:nowrap; }
+  .chip.scraped { border-color:rgba(54,226,196,.5); color:#36e2c4; }
+  .chip.partial { border-color:rgba(255,180,84,.5); color:#ffb454; }
+  .chip.blocked_needs_apify { border-color:rgba(255,84,112,.55); color:#ff5470; }
+  .chip.failed, .chip.not_found { border-color:rgba(255,84,112,.35); color:var(--text-3); }
+  .chip.pending, .chip.skipped { color:var(--text-3); }
+  .intake-row { padding:10px 0; border-bottom:1px solid var(--hairline); }
+  .intake-row .top { display:flex; justify-content:space-between; gap:10px; align-items:baseline; flex-wrap:wrap; }
 </style>
 </head>
 <body>
@@ -51,6 +60,17 @@
         <h2>Spend (24h)</h2>
         <div id="costsPanel"><div class="empty">loading…</div></div>
       </div>
+    </div>
+
+    <div class="card card-pad panel">
+      <h2>Scraper sandbox <span class="dim" style="font-size:.75rem; font-weight:400">Agent-Scraper · Phase 1</span></h2>
+      <form id="intakeForm" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px">
+        <input class="input" name="business_name" placeholder="Business name" required style="flex:1; min-width:160px">
+        <input class="input" name="website" placeholder="Website (example.com)" required style="flex:2; min-width:220px">
+        <button class="btn btn-primary" type="submit" id="intakeBtn" style="height:42px">Scrape</button>
+      </form>
+      <div id="intakeMsg" class="dim" style="font-size:.82rem; min-height:1em; margin-bottom:8px"></div>
+      <div id="intakesPanel"><div class="empty">loading…</div></div>
     </div>
 
     <div class="card card-pad panel">
@@ -109,6 +129,24 @@ async function refresh() {
     document.getElementById('costsPanel').innerHTML =
       table(['provider', 'calls', 'usd (est)'], c.totals.map((r) => [r.provider, r.calls, '$' + r.usd]));
 
+    const ik = await j('/api/admin/intakes');
+    document.getElementById('intakesPanel').innerHTML = !ik.intakes.length
+      ? '<div class="empty">no scrapes yet — run one above</div>'
+      : ik.intakes.map((i) => {
+          const chips = i.sources.map((s) =>
+            '<span class="chip ' + esc(s.status) + '" title="' + esc(s.note || '') + '">' + esc(s.source) + ': ' + esc(s.status) + '</span>').join('');
+          const flags = i.flags ? JSON.parse(i.flags) : [];
+          return '<div class="intake-row">'
+            + '<div class="top"><strong>' + esc(i.business_name) + '</strong>'
+            + '<span class="dim mono" style="font-size:.72rem">' + esc(i.tenant_slug) + ' · ' + esc(i.status)
+            + (i.llm_calls ? ' · ' + i.llm_calls + ' llm calls' : '')
+            + (i.scrape_key ? ' · <a href="/api/admin/intake/' + esc(i.id) + '" target="_blank">scrape.json</a>' : '')
+            + '</span></div>'
+            + '<div>' + (chips || '<span class="dim" style="font-size:.78rem">queued…</span>') + '</div>'
+            + (flags.length ? '<div class="dim" style="font-size:.74rem; margin-top:4px">⚑ ' + flags.map(esc).join(' · ') + '</div>' : '')
+            + '</div>';
+        }).join('');
+
     const ev = await j('/api/admin/events/summary');
     document.getElementById('eventsPanel').innerHTML =
       table(['event', 'count', 'sessions'], ev.counts.map((r) => [r.name, r.n, r.sessions]))
@@ -118,6 +156,25 @@ async function refresh() {
         ]));
   } catch (e) { console.error(e); }
 }
+
+document.getElementById('intakeForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('intakeBtn');
+  const msg = document.getElementById('intakeMsg');
+  btn.disabled = true; msg.textContent = 'queuing…';
+  try {
+    const fd = new FormData(e.target);
+    const r = await j('/api/admin/intake', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ business_name: fd.get('business_name'), website: fd.get('website') }),
+    });
+    if (!r.success) throw new Error(r.error);
+    msg.textContent = 'queued — tenant ' + r.tenant.slug;
+    e.target.reset();
+    setTimeout(refresh, 800);
+  } catch (err) { msg.textContent = 'error: ' + err.message; }
+  btn.disabled = false;
+});
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   await fetch('/admin/auth/logout', { method: 'POST', credentials: 'same-origin' });

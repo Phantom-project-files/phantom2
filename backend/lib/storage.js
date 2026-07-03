@@ -69,6 +69,9 @@ const KIND_FOLDER = {
   product: 'products',
   phantom: 'phantoms',
   brand: 'brand',
+  scrape: 'scrapes',
+  shot: 'shots',
+  audio: 'audio',
   scratch: 'scratch',
 };
 
@@ -293,7 +296,7 @@ export const storage = {
 
 // SSRF allowlist for ingestFromUrl. Edit via env if Enhancor changes domains.
 const INGEST_ALLOWED_HOSTS = (process.env.INGEST_ALLOWED_HOSTS
-  || 'enhancor.ai,enhancor.io,r2.cloudflarestorage.com')
+  || 'fal.media,fal.run,r2.cloudflarestorage.com')
   .split(',').map((s) => s.trim()).filter(Boolean);
 
 export { StorageError };

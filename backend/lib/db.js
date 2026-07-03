@@ -263,6 +263,86 @@ export const mediaAssets = {
   softDelete(id) { _mediaSoftDelete.run(id); },
 };
 
+// ── tenants ───────────────────────────────────────────────────────────────────
+const _tenantInsert = db.prepare(`
+  INSERT INTO tenants (slug, business_name, website) VALUES (?, ?, ?)
+`);
+const _tenantBySlug = db.prepare('SELECT * FROM tenants WHERE slug = ?');
+const _tenantList = db.prepare('SELECT * FROM tenants ORDER BY created_at DESC LIMIT ?');
+const _tenantSetVertical = db.prepare('UPDATE tenants SET vertical = ? WHERE slug = ?');
+
+export function safeSlug(s) {
+  return String(s || '').toLowerCase().trim().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+export const tenants = {
+  // v1 pattern: slugified business name + 4-char suffix → "haus-72y9"
+  create({ businessName, website = null, suffix }) {
+    const base = safeSlug(businessName).slice(0, 40) || 'brand';
+    const slug = `${base}-${suffix}`;
+    _tenantInsert.run(slug, businessName, website);
+    return _tenantBySlug.get(slug);
+  },
+  bySlug(slug) { return _tenantBySlug.get(slug) || null; },
+  list(limit = 100) { return _tenantList.all(limit); },
+  setVertical(slug, vertical) { _tenantSetVertical.run(vertical, slug); },
+};
+
+// ── intakes ───────────────────────────────────────────────────────────────────
+const _intakeInsert = db.prepare(`
+  INSERT INTO intakes (id, tenant_slug, business_name, website) VALUES (?, ?, ?, ?)
+`);
+const _intakeById = db.prepare('SELECT * FROM intakes WHERE id = ?');
+const _intakeList = db.prepare('SELECT * FROM intakes ORDER BY created_at DESC LIMIT ?');
+const _intakePatch = db.prepare(`
+  UPDATE intakes SET status = COALESCE(@status, status),
+                     scrape_key = COALESCE(@scrape_key, scrape_key),
+                     llm_calls = COALESCE(@llm_calls, llm_calls),
+                     flags = COALESCE(@flags, flags),
+                     error = COALESCE(@error, error),
+                     updated_at = strftime('%s','now')
+   WHERE id = @id
+`);
+
+export const intakes = {
+  create({ id, tenantSlug, businessName, website }) {
+    _intakeInsert.run(id, tenantSlug, businessName, website);
+    return _intakeById.get(id);
+  },
+  byId(id) { return _intakeById.get(id) || null; },
+  list(limit = 50) { return _intakeList.all(limit); },
+  patch(id, { status = null, scrapeKey = null, llmCalls = null, flags = null, error = null } = {}) {
+    _intakePatch.run({
+      id, status, scrape_key: scrapeKey, llm_calls: llmCalls,
+      flags: flags ? JSON.stringify(flags) : null, error,
+    });
+    return _intakeById.get(id);
+  },
+};
+
+// ── scrape_sources (per-source honest status flags) ──────────────────────────
+const _sourceUpsert = db.prepare(`
+  INSERT INTO scrape_sources (intake_id, source, handle, status, note, data)
+  VALUES (@intake_id, @source, @handle, @status, @note, @data)
+  ON CONFLICT(intake_id, source) DO UPDATE SET
+    handle = COALESCE(excluded.handle, handle),
+    status = excluded.status,
+    note = excluded.note,
+    data = COALESCE(excluded.data, data),
+    updated_at = strftime('%s','now')
+`);
+const _sourcesByIntake = db.prepare('SELECT * FROM scrape_sources WHERE intake_id = ? ORDER BY id');
+
+export const scrapeSources = {
+  upsert({ intakeId, source, handle = null, status, note = null, data = null }) {
+    _sourceUpsert.run({
+      intake_id: intakeId, source, handle, status, note,
+      data: data ? JSON.stringify(data) : null,
+    });
+  },
+  byIntake(intakeId) { return _sourcesByIntake.all(intakeId); },
+};
+
 // ── audio_tracks ──────────────────────────────────────────────────────────────
 const _trackInsert = db.prepare(`
   INSERT INTO audio_tracks (title, artist, source, license_note, r2_key, duration_sec, bpm, vibe_tags)

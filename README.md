@@ -50,5 +50,12 @@ per-kind concurrency caps + billing circuit-breaker, user-journey events stream,
 LLM boundary (mock | claude_code | anthropic_api with Opus/Sonnet/Haiku task routing),
 R2/local storage, Fal client scaffold, operator console shell.
 
-Next: Phase 1 — Agent-Scraper (taxonomy tree, escalation ladder, `needs_apify` flags).
+Phase 1 (Agent-Scraper) ✅ — taxonomy contract (`lib/scrape/taxonomy.js`: gated LLM
+sections, token-budget capped), fetch ladder + blocked-detection, per-source honest
+status flags (`blocked_needs_apify` tells the operator which Apify actor to buy),
+social probes, vertical branches (apparel / music_artist), console scraper sandbox.
+Verified offline (fixture) and against the real internet (allbirds.com: IG public
+metadata scraped, TikTok correctly flagged, Shopify detected).
+
+Next: Phase 2 — Funnel (value prop, pricing, OAuth, Stripe, agent-email skeleton).
 Full plan: `docs/PLAN.md`.

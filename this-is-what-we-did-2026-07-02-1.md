@@ -62,11 +62,44 @@
   coming-soon, unauth `/api/*` = **503 JSON** (fixed: was serving HTML to curl due to `Accept: */*`),
   beacon 204 + event lands in admin summary, login sets cookie, authed console renders.
 
-## Next session / remaining Phase-0-adjacent
-1. **Phase 1 — Agent-Scraper** (taxonomy contract from `docs/bpmn/agent-scraper.pdf`, escalation
-   ladder, `needs_apify` per-source flags, token budget gates, tenants+intake migration).
-2. Optional ops: create the `phantom2` Fly app + R2 bucket (`phantom2-prod`) when we want staging.
-3. Rotate Claude + Fal keys (they were in `Phantom2.0.env.rtf` in Downloads).
+## Phase 1 — Agent-Scraper BUILT + VERIFIED (same session) → v0.2.0
+- Operator created GitHub **`Phantom-project-files/phantom2`** → pushed; remote wired.
+- **Migration 002:** `tenants` (slug minted at intake, v1 `name-xxxx` pattern), `intakes`
+  (status/scrape_key/llm_calls/flags), **`scrape_sources`** — one row per source with honest status
+  `scraped | partial | blocked_needs_apify | not_found | skipped | failed` (the "flag it so I can
+  acquire Apify" system).
+- **`lib/scrape/fetcher.js`** — v1-ported ladder (browser-UA → honest-bot-UA), `detectBlocked`
+  (Cloudflare challenge / captcha / JS-shell heuristics), `discoverPages` (nav-link categorization:
+  about/products/faq, bounded `SCRAPE_MAX_PAGES`=6), deterministic extraction (meta/og, headings,
+  images, logo, social handles incl. spotify/soundcloud, tech hints: shopify + music platforms,
+  page text for LLM). `SCRAPE_OFFLINE=1` + `SCRAPE_FIXTURE_HTML` for $0 tests.
+- **`lib/scrape/taxonomy.js`** — the BPMN sheet as code: 6 gated sections (about, target_market,
+  products_services, brand_assets, competitors, vertical incl. apparel/music_artist branches), each
+  `{tier, gate, prompt, schema, mock}` — extraction=Sonnet, synthesis=Opus, classify=Haiku;
+  `assembleScrape()` = the Phase-3 script-gen input contract.
+- **`lib/scrape/social.js`** — per-platform public probe (no LLM): og-metadata pull, follower-count
+  regex, login-wall/JS-shell classification → honest statuses. YouTube channel-id (`UC…`) URL fix.
+- **`lib/scrape/runner.js`** — jobs-queue handler (`scrape`, concurrency 2, restart-safe):
+  crawl → deterministic → gated LLM passes (**`SCRAPE_LLM_CALL_BUDGET`**=10 cap) → probes →
+  scrape.json → R2 `tenants/<slug>/scrapes/…` → intake patched + events + logs. `startIntake()`
+  mints tenant+intake+job (shared by Phase-2 funnel later).
+- **Console:** "Scraper sandbox" panel — name+website form → queue; intake list with per-source
+  status chips (green/amber/red), flags line, scrape.json link. Storage kinds + fal ingest
+  allowlist updated (`scrape/shot/audio`; `fal.media`).
+- **Verified:** smoke now **23/23 PASS** (offline e2e: fixture → scraped, sections assembled from
+  mock LLM, shopify+handles detected deterministically, budget counted, signed URL mints).
+  **Real-internet run (LLM mock, $0): allbirds.com** → 6 pages via browser rung; IG **scraped**
+  (public metadata, 515K followers); TikTok **blocked_needs_apify** (JS shell — correct honest
+  flag); X/FB **partial** (og metadata); YouTube channel resolves post-fix; shopify=true; 18 imgs
+  + logo; flag "needs Apify for deep data: tiktok". No server errors.
+
+## Next session
+1. **Phase 2 — Funnel:** value prop (3× 16:9 frames from scrape.json), pricing tiers, Google OAuth,
+   Stripe test-mode checkout, admin overrides, agent-email skeleton (events-stream triggers).
+2. Optional ops: create Fly app `phantom2` + R2 bucket `phantom2-prod` when staging wanted.
+3. Rotate Claude + Fal keys (were plaintext in `Phantom2.0.env.rtf`).
+4. Later scraper rungs: headless-Chrome step (Phase 5 image), Apify adapter behind the
+   `blocked_needs_apify` flags, Wikipedia fallback for dead/blocked sites.
 
 ## Runbook
 ```bash
