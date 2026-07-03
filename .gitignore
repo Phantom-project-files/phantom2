@@ -1,0 +1,18 @@
+# secrets — NEVER commit
+.env
+*.env
+!*.env.example
+
+# runtime state
+node_modules/
+backend/data/
+backend/tenants/
+*.db
+*.db-shm
+*.db-wal
+*.db.bak*
+
+# os / editor noise
+.DS_Store
+Thumbs.db
+*.log

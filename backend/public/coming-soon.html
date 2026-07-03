@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phantom · Coming Soon</title>
+<meta name="description" content="Phantom — autonomous content. Six AI creators, 30 reels and 30 posts a month, on autopilot. Coming soon.">
+<link rel="icon" href="/app/assets/phantom-logo.svg">
+<link rel="stylesheet" href="/app/assets/phantom.css">
+<style>
+  /* Coming Soon — a trimmed, self-contained copy of the Phantom landing. The real
+     "Get started" funnel lives at /app/index.html behind operator sign-in. */
+  :root { --hero-pad: clamp(64px, 8vh, 112px); }
+  html, body { height:100%; }
+  body { background: var(--bg); overflow-x:hidden; color:var(--text); }
+  body::before {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(900px 620px at 50% -8%, rgba(124,92,255,.22), transparent 60%),
+      radial-gradient(720px 520px at 90% 110%, rgba(54,226,196,.07), transparent 65%),
+      radial-gradient(560px 360px at 8% 92%, rgba(124,92,255,.08), transparent 65%);
+  }
+
+  /* nav */
+  .gnav { position:fixed; top:0; left:0; right:0; z-index:10; height:64px;
+    background: linear-gradient(180deg, rgba(10,11,16,.55), rgba(10,11,16,0));
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  .gnav .row { max-width:1280px; margin:0 auto; height:100%;
+    display:flex; align-items:center; justify-content:space-between; padding:0 24px; }
+  .gnav .glyph { display:inline-flex; align-items:center; }
+  .gnav .glyph img { width:30px; height:30px; filter:drop-shadow(0 4px 14px var(--accent-glow, rgba(124,92,255,.45))); }
+  /* admin-access icon (top-right) → operator sign-in */
+  .admin-access {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:38px; height:38px; border-radius:10px;
+    color:var(--text-3); border:1px solid var(--hairline);
+    background: rgba(255,255,255,.02);
+    transition: color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .admin-access:hover { color:var(--text); border-color: rgba(124,92,255,.5); background: rgba(124,92,255,.08); }
+  .admin-access svg { width:18px; height:18px; }
+
+  /* hero */
+  .hero { position:relative; z-index:1; min-height:100dvh;
+    display:flex; align-items:center; justify-content:center;
+    padding: var(--hero-pad) 24px; text-align:center; }
+
+  /* liquid-glass card */
+  .glass {
+    position:relative; z-index:2; max-width: min(820px, 92vw); width:100%;
+    padding: clamp(36px, 5.2vh, 60px) clamp(28px, 4.5vw, 60px); border-radius: 28px;
+    background: linear-gradient(180deg, rgba(16,18,28,.58), rgba(10,11,16,.62));
+    backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255,255,255,.10);
+    box-shadow: 0 40px 90px -28px rgba(0,0,0,.72), 0 18px 40px -20px rgba(124,92,255,.28), inset 0 1px 0 rgba(255,255,255,.08);
+    transform: translateY(-4vh); isolation: isolate;
+  }
+  .glass::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background: linear-gradient(180deg, rgba(255,255,255,.06), transparent 28%); z-index:-1; }
+
+  .stack { position:relative; z-index:2; display:flex; flex-direction:column; align-items:center;
+    gap: clamp(12px, 1.8vh, 22px); width:100%; }
+  .stack > * { opacity:0; transform:translateY(14px); animation: rise .9s var(--ease) forwards; }
+  .stack > *:nth-child(1){animation-delay:.05s} .stack > *:nth-child(2){animation-delay:.18s}
+  .stack > *:nth-child(3){animation-delay:.30s} .stack > *:nth-child(4){animation-delay:.46s}
+  .stack > *:nth-child(5){animation-delay:.60s} .stack > *:nth-child(6){animation-delay:.74s}
+  @keyframes rise { to { opacity:1; transform:none; } }
+
+  /* ghost mark */
+  .mark { width: clamp(80px, 9vw, 110px); aspect-ratio:1/1.1; position:relative; }
+  .mark .aura { position:absolute; inset:-30%;
+    background: radial-gradient(closest-side, rgba(124,92,255,.55), transparent 70%);
+    filter: blur(10px); z-index:-1; animation: aura-pulse 5s var(--ease) infinite; }
+  @keyframes aura-pulse { 0%,100%{opacity:.55;transform:scale(1)} 50%{opacity:1;transform:scale(1.12)} }
+  .mark svg { width:100%; height:100%; display:block; overflow:visible; }
+  .ghost-body { transform-origin: 50% 65%; animation: ghost-float 7s var(--ease) infinite; }
+  @keyframes ghost-float { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-7px) scale(1.018)} }
+  .ghost-eye.blink { animation: blink 6s steps(1,end) infinite; transform-box:fill-box; transform-origin:center; }
+  @keyframes blink { 0%,93%,100%{transform:scaleY(1)} 95%,98%{transform:scaleY(.08)} }
+
+  .eyebrow { font-size:.78rem; letter-spacing:.32em; text-transform:uppercase; color: var(--text-3); font-weight:500; }
+  .eyebrow .pulse { display:inline-block; width:6px; height:6px; border-radius:50%;
+    background: var(--teal); box-shadow:0 0 12px var(--teal); vertical-align:middle; margin-right:9px; opacity:.85;
+    animation: dot-pulse 2.4s var(--ease) infinite; }
+  @keyframes dot-pulse { 0%,100%{transform:scale(1);opacity:.6} 50%{transform:scale(1.4);opacity:1} }
+
+  .wordmark { margin:0; font-family: var(--display); font-weight:700;
+    font-size: clamp(2.6rem, 7.6vw, 5.4rem); line-height:.95; letter-spacing:.06em;
+    background: linear-gradient(180deg, #ffffff 0%, #d6c9ff 55%, var(--accent-2) 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    filter: drop-shadow(0 6px 20px rgba(10,11,16,.85)); }
+
+  .tri { display:flex; align-items:stretch; justify-content:center; gap: clamp(20px, 4.5vw, 64px); margin-top: clamp(4px,1vh,12px); }
+  .tri-col { display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .tri-num { font-family: var(--display); font-weight:700; font-size: clamp(2.6rem, 8.5vw, 6rem); line-height:.95; letter-spacing:-.02em;
+    background: linear-gradient(180deg, #ffffff 0%, var(--accent-2) 70%, var(--accent) 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent; filter: drop-shadow(0 6px 18px rgba(10,11,16,.85)); }
+  .tri-label { font-size:.74rem; letter-spacing:.28em; text-transform:uppercase; color: var(--text-3); font-weight:500; }
+  .tri-rule { width:1px; align-self:stretch; margin-top:4px;
+    background: linear-gradient(180deg, transparent, rgba(157,134,255,.55) 40%, rgba(157,134,255,.55) 60%, transparent); }
+
+  .tagline { color: var(--text-2); font-size: clamp(.95rem, 1.6vw, 1.06rem); max-width: 46ch; line-height:1.5; }
+
+  /* Coming Soon pill — replaces the landing's "Get started" CTA (non-interactive) */
+  .soon { display:inline-flex; align-items:center; gap:10px; height:58px; padding:0 38px; border-radius:999px;
+    background: linear-gradient(180deg, var(--accent-2), var(--accent)); color:#fff; font-weight:600; font-size:1.04rem;
+    box-shadow: 0 0 0 1px rgba(124,92,255,.4), 0 26px 60px -16px var(--accent-glow, rgba(124,92,255,.45));
+    cursor:default; position:relative; isolation:isolate; opacity:.96; }
+  .soon::before { content:""; position:absolute; inset:-3px; border-radius:999px; z-index:-1;
+    background: conic-gradient(from 0deg, rgba(124,92,255,0), rgba(157,134,255,.6), rgba(54,226,196,.4), rgba(124,92,255,0));
+    filter: blur(10px); opacity:.7; animation: halo 8s linear infinite; }
+  @keyframes halo { to { transform: rotate(360deg); } }
+  .soon .dot { width:8px; height:8px; border-radius:50%; background:#fff; box-shadow:0 0 10px rgba(255,255,255,.8); animation: dot-pulse 2s var(--ease) infinite; }
+
+  /* FAQ (product only — no pricing) */
+  .faq { position:relative; z-index:1; margin: clamp(8px,4vh,48px) auto clamp(40px,8vh,96px); max-width:760px; padding:0 24px; }
+  .faq h3 { font-family:var(--display); font-weight:700; font-size:1.6rem; margin:0 0 18px; color:#fff; text-align:center; letter-spacing:-.01em; }
+  .faq details { background: var(--surface-2); border:1px solid var(--hairline); border-radius:14px; padding:16px 20px; margin-bottom:10px;
+    transition: border-color .15s var(--ease), background .15s var(--ease); }
+  .faq details[open] { border-color: rgba(124,92,255,.4); background: linear-gradient(180deg, rgba(124,92,255,.04), var(--surface-2) 70%); }
+  .faq summary { list-style:none; cursor:pointer; color:#fff; font-family:var(--display); font-weight:600; font-size:1.02rem;
+    display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .faq summary::-webkit-details-marker { display:none; }
+  .faq summary::after { content:"+"; font-family:var(--mono); font-size:1.3rem; color:var(--accent-2); transition: transform .2s var(--ease); line-height:1; }
+  .faq details[open] summary::after { content:"−"; }
+  .faq details p { margin:12px 0 4px; color:var(--text-2); font-size:.94rem; line-height:1.55; }
+
+  /* footer */
+  .foot { position:relative; z-index:1; text-align:center; padding: 0 24px 56px; color: var(--text-3); font-size:.82rem; }
+  .foot a { color: var(--text-3); }
+  .foot a:hover { color: var(--text); }
+  .foot .ai-note { display:block; margin-top:8px; font-family:var(--mono); font-size:.72rem; letter-spacing:.04em; opacity:.8; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stack > *, .ghost-body, .ghost-eye, .mark .aura, .soon::before, .soon .dot, .eyebrow .pulse { animation:none; opacity:1; transform:none; }
+  }
+  @media (max-width: 780px) { .tri { gap: clamp(14px,3.5vw,28px); } .tri-rule { display:none; } .soon { height:54px; padding:0 30px; } }
+</style>
+</head>
+<body>
+
+<header class="gnav">
+  <div class="row">
+    <a class="glyph" href="/" aria-label="Phantom"><img src="/app/assets/phantom-logo.svg" alt=""></a>
+    <a class="admin-access" href="/app/admin-login.html" aria-label="Operator access" title="Operator access">
+      <!-- key/lock glyph -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="4" y="10" width="16" height="10" rx="2"></rect>
+        <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+        <circle cx="12" cy="15" r="1.4" fill="currentColor" stroke="none"></circle>
+      </svg>
+    </a>
+  </div>
+</header>
+
+<main class="hero">
+  <div class="glass">
+    <div class="stack">
+      <div class="mark">
+        <div class="aura"></div>
+        <svg viewBox="0 0 100 110" fill="none" role="img" aria-label="Phantom">
+          <defs>
+            <linearGradient id="phantomGhostFill" x1="50" y1="5" x2="50" y2="105" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#BEA6FA"/><stop offset="0.55" stop-color="#8E63F0"/><stop offset="1" stop-color="#6E42CB"/>
+            </linearGradient>
+          </defs>
+          <g class="ghost-body">
+            <path d="M12 105V42C12 17 31 5 50 5C69 5 88 17 88 42V105Q81 96 74 105Q67 96 60 105Q53 96 46 105Q39 96 32 105Q25 96 18 105Q15 100 12 105Z" fill="url(#phantomGhostFill)"/>
+            <rect class="ghost-eye blink" x="33.5" y="40" width="8" height="24" rx="4" fill="#2C2545"/>
+            <rect class="ghost-eye blink" x="58.5" y="40" width="8" height="24" rx="4" fill="#2C2545"/>
+          </g>
+        </svg>
+      </div>
+
+      <span class="eyebrow"><span class="pulse"></span>autonomous content</span>
+
+      <h1 class="wordmark">PHANTOM</h1>
+
+      <div class="tri" role="group" aria-label="30 reels, 30 posts, 30 days">
+        <div class="tri-col"><div class="tri-num">30</div><div class="tri-label">Reels</div></div>
+        <div class="tri-rule" aria-hidden="true"></div>
+        <div class="tri-col"><div class="tri-num">30</div><div class="tri-label">Posts</div></div>
+        <div class="tri-rule" aria-hidden="true"></div>
+        <div class="tri-col"><div class="tri-num">30</div><div class="tri-label">Days</div></div>
+      </div>
+
+      <p class="tagline">Six AI creators built from your brand DNA. Thirty reels and thirty posts a month — written, shot, and delivered on autopilot.</p>
+
+      <span class="soon" role="status" aria-label="Coming soon"><span class="dot" aria-hidden="true"></span>Coming Soon</span>
+    </div>
+  </div>
+</main>
+
+<section class="faq" aria-label="FAQ">
+  <h3>FAQ</h3>
+
+  <details open>
+    <summary>What are Phantoms?</summary>
+    <p>AI-generated UGC creators built from your brand DNA — six synthetic personalities sized for your audience, voice, and product. They shoot, deliver, and never quit. Flag any one that doesn't fit and we'll re-cast (up to 5 takes per phantom before an admin intervenes).</p>
+  </details>
+
+  <details>
+    <summary>Can I edit my reels?</summary>
+    <p>Yes. Every piece has a flag icon in the feed to send back for regeneration (up to 5 takes per piece), plus per-piece caption editing so you can tweak copy without re-rendering the video.</p>
+  </details>
+
+  <details>
+    <summary>How would my reels get deployed?</summary>
+    <p>Download everything as a single ZIP or per-piece, or use the calendar-style deploy editor — drag pieces onto specific days and we publish on schedule through our aggregator (Instagram, TikTok, YouTube Shorts).</p>
+  </details>
+</section>
+
+<footer class="foot">
+  <span>© 2026 Phantom · <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a></span>
+  <span class="ai-note">All creators and content shown are AI-generated.</span>
+</footer>
+
+<script>
+  fetch('/version').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+    if (!d || !d.version) return;
+    var el = document.createElement('div');
+    el.style.cssText = 'position:fixed;bottom:8px;left:50%;transform:translateX(-50%);z-index:50;font:500 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:rgba(255,255,255,.32);letter-spacing:.04em;pointer-events:none;user-select:none';
+    el.textContent = 'v' + d.version + (d.sha ? ' · ' + String(d.sha).slice(0, 7) : '');
+    document.body.appendChild(el);
+  }).catch(function () {});
+</script>
+
+</body>
+</html>

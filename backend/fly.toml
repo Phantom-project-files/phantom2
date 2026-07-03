@@ -1,0 +1,41 @@
+# Phantom 2.0 — staging app (parallel to v1's `online-phantom`; domain cuts over at parity).
+# Deploy: fly launch --copy-config --name phantom2 (once) → fly deploy
+# v1 lesson baked in: EVERYTHING durable lives on /data or R2 — the rootfs is wiped every deploy.
+app = "phantom2"
+primary_region = "iad"
+
+[build]
+
+[env]
+  PORT = "3020"
+  NODE_ENV = "production"
+  COMING_SOON = "1"
+  COOKIE_SECURE = "1"
+  PHANTOM_DB_PATH = "/data/phantom2.db"
+  STORAGE_BACKEND = "r2"
+  CLAUDE_MODE = "mock"          # flip to anthropic_api when ready to spend
+  MOCK_MEDIA_GEN = "1"          # flip to 0 when Fal is funded
+  # Secrets via `fly secrets set`: ADMIN_USERNAME ADMIN_PASSWORD ANTHROPIC_API_KEY FAL_KEY
+  #   R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY STRIPE_SECRET_KEY ...
+
+[mounts]
+  source = "phantom2_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3020
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-2x"   # 2 vCPU / 2 GB — v1's post stampede died on a 1 GB box
+  memory = "2gb"

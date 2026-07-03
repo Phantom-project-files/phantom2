@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operator console · Phantom 2.0</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="assets/phantom-logo.svg">
+<link rel="stylesheet" href="assets/phantom.css">
+<style>
+  .grid2 { display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap:16px; }
+  .panel h2 { font-size:1.02rem; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between; }
+  table { width:100%; border-collapse:collapse; font-size:.84rem; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--hairline); }
+  th { color:var(--text-3); font-weight:500; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:.72rem; font-family:var(--mono);
+           border:1px solid var(--hairline); color:var(--text-2); margin-right:6px; }
+  .badge.ok { border-color: rgba(54,226,196,.4); color:#36e2c4; }
+  .badge.warn { border-color: rgba(255,180,84,.5); color:#ffb454; }
+  .empty { color:var(--text-3); font-size:.86rem; padding:10px 0; }
+  .phases li { margin:4px 0; color:var(--text-2); font-size:.88rem; }
+  .phases li.done { color:#36e2c4; }
+  .phases li.now { color:#fff; font-weight:600; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="admin.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom <small>2.0 operator</small></a>
+    <button class="btn" id="logoutBtn" style="height:36px">Sign out</button>
+  </div>
+</header>
+
+<main class="section" style="padding-top:28px">
+  <div class="wrap stack" style="gap:16px">
+
+    <div class="card card-pad panel">
+      <h2>System <span id="modeBadges"></span></h2>
+      <div id="statusLine" class="dim mono" style="font-size:.8rem">loading…</div>
+    </div>
+
+    <div class="grid2">
+      <div class="card card-pad panel">
+        <h2>Jobs queue</h2>
+        <div id="jobsPanel"><div class="empty">loading…</div></div>
+      </div>
+
+      <div class="card card-pad panel">
+        <h2>Spend (24h)</h2>
+        <div id="costsPanel"><div class="empty">loading…</div></div>
+      </div>
+    </div>
+
+    <div class="card card-pad panel">
+      <h2>User journey — events (24h)</h2>
+      <div id="eventsPanel"><div class="empty">loading…</div></div>
+    </div>
+
+    <div class="card card-pad panel">
+      <h2>Build phases</h2>
+      <ul class="phases" style="margin:0; padding-left:18px">
+        <li class="done">0 · Foundation — auth, gate, jobs queue, events, LLM boundary, storage</li>
+        <li class="now">1 · Agent-Scraper — taxonomy tree, escalation ladder, needs-apify flags</li>
+        <li>2 · Funnel — value prop, pricing, OAuth, Stripe, agent-email skeleton</li>
+        <li>3 · Script-gen — calendar, campaigns, 6 phantoms, briefs</li>
+        <li>4 · Media engine — Fal (nano-banana / seedance), shot library, webhooks</li>
+        <li>5 · Edit layer — beat-cut, Remotion graphics, post composer</li>
+        <li>6 · QC — flags → regen (max 3), learnings loop, coverage</li>
+        <li>7 · Deploy + tracker — Ayrshare, month-end report → learnings</li>
+        <li>8 · Local claude_code mode sync, promote-to-prod, journey dashboards</li>
+      </ul>
+    </div>
+
+  </div>
+</main>
+
+<script>
+async function j(url, opts) {
+  const r = await fetch(url, Object.assign({ credentials: 'same-origin' }, opts));
+  if (r.status === 401) { location.href = '/app/admin-login.html?next=%2Fapp%2Fadmin.html'; throw new Error('unauthorized'); }
+  return r.json();
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function table(headers, rows) {
+  if (!rows.length) return '<div class="empty">nothing yet</div>';
+  return '<div style="overflow-x:auto"><table><thead><tr>' + headers.map((h) => '<th>' + esc(h) + '</th>').join('')
+    + '</tr></thead><tbody>' + rows.map((r) => '<tr>' + r.map((c) => '<td class="num">' + esc(c) + '</td>').join('') + '</tr>').join('')
+    + '</tbody></table></div>';
+}
+
+async function refresh() {
+  try {
+    const s = await j('/api/admin/status');
+    document.getElementById('modeBadges').innerHTML =
+      '<span class="badge ' + (s.claude_mode === 'anthropic_api' ? 'warn' : 'ok') + '">claude: ' + esc(s.claude_mode) + '</span>'
+      + '<span class="badge ' + (s.mock_media_gen ? 'ok' : 'warn') + '">media: ' + (s.mock_media_gen ? 'mock' : 'REAL $') + '</span>'
+      + '<span class="badge">storage: ' + esc(s.storage_backend) + '</span>'
+      + '<span class="badge">' + (s.coming_soon ? 'coming-soon ON' : 'PUBLIC') + '</span>';
+    document.getElementById('statusLine').textContent =
+      'v' + s.version + ' · up ' + Math.floor(s.uptime_sec / 60) + 'm · models: ' + Object.values(s.llm_models).join(' / ');
+
+    const jb = await j('/api/admin/jobs/summary');
+    document.getElementById('jobsPanel').innerHTML =
+      table(['kind', 'status', 'count'], jb.jobs.map((r) => [r.kind, r.status, r.n]));
+
+    const c = await j('/api/admin/costs/summary');
+    document.getElementById('costsPanel').innerHTML =
+      table(['provider', 'calls', 'usd (est)'], c.totals.map((r) => [r.provider, r.calls, '$' + r.usd]));
+
+    const ev = await j('/api/admin/events/summary');
+    document.getElementById('eventsPanel').innerHTML =
+      table(['event', 'count', 'sessions'], ev.counts.map((r) => [r.name, r.n, r.sessions]))
+      + '<h2 style="margin-top:16px; font-size:.9rem">Recent</h2>'
+      + table(['when', 'event', 'path', 'session'], ev.recent.map((r) => [
+          new Date(r.ts * 1000).toLocaleTimeString(), r.name, r.path || '—', (r.session_key || '').slice(0, 8),
+        ]));
+  } catch (e) { console.error(e); }
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch('/admin/auth/logout', { method: 'POST', credentials: 'same-origin' });
+  location.href = '/app/admin-login.html';
+});
+
+refresh();
+setInterval(refresh, 10_000);
+
+fetch('/version').then((r) => r.json()).then((d) => {
+  if (!d || !d.version) return;
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;bottom:8px;left:50%;transform:translateX(-50%);z-index:50;font:500 11px/1 ui-monospace,Menlo,monospace;color:rgba(255,255,255,.32);letter-spacing:.04em;pointer-events:none';
+  el.textContent = 'v' + d.version + (d.sha ? ' · ' + String(d.sha).slice(0, 7) : '');
+  document.body.appendChild(el);
+}).catch(() => {});
+</script>
+
+</body>
+</html>

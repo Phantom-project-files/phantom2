@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy · Phantom</title>
+<meta name="description" content="How Phantom collects, uses, and shares data.">
+<link rel="icon" href="/app/assets/phantom-logo.svg">
+<link rel="stylesheet" href="/app/assets/phantom.css">
+<style>
+  body { background: var(--bg); color: var(--text); }
+  .legal-nav { position:sticky; top:0; z-index:10; height:60px; display:flex; align-items:center;
+    background: linear-gradient(180deg, rgba(10,11,16,.7), rgba(10,11,16,.2)); backdrop-filter: blur(12px); }
+  .legal-nav .row { max-width:880px; margin:0 auto; width:100%; padding:0 24px; display:flex; align-items:center; justify-content:space-between; }
+  .legal-nav .glyph img { width:28px; height:28px; }
+  .legal-nav a.back { color:var(--text-3); font-size:.9rem; }
+  .legal-nav a.back:hover { color:var(--text); }
+  .legal { max-width:780px; margin:0 auto; padding: 40px 24px 96px; }
+  .legal h1 { font-family:var(--display); font-size: clamp(1.8rem,4vw,2.6rem); margin:0 0 6px; letter-spacing:-.01em; }
+  .legal .eff { color:var(--text-3); font-family:var(--mono); font-size:.8rem; margin-bottom:24px; }
+  .legal h2 { font-family:var(--display); font-size:1.18rem; margin:34px 0 10px; color:#fff; }
+  .legal p, .legal li { color:var(--text-2); line-height:1.62; font-size:.96rem; }
+  .legal ul { padding-left:20px; }
+  .legal a { color:var(--accent-2); }
+  .draft { max-width:780px; margin: 16px auto 0; padding:12px 16px; border-radius:10px;
+    background: rgba(255,196,0,.08); border:1px solid rgba(255,196,0,.35); color:#ffd27a; font-size:.84rem; }
+  .nutrition { width:100%; border-collapse:collapse; margin:14px 0; font-size:.9rem; }
+  .nutrition th, .nutrition td { border:1px solid var(--hairline); padding:10px 12px; text-align:left; vertical-align:top; }
+  .nutrition th { background:var(--surface-2); color:#fff; font-family:var(--mono); font-size:.78rem; letter-spacing:.04em; text-transform:uppercase; }
+  .nutrition td { color:var(--text-2); }
+  .foot { max-width:780px; margin:0 auto; padding:0 24px 56px; color:var(--text-3); font-size:.82rem; }
+</style>
+</head>
+<body>
+
+<nav class="legal-nav">
+  <div class="row">
+    <a class="glyph" href="/" aria-label="Phantom"><img src="/app/assets/phantom-logo.svg" alt=""></a>
+    <a class="back" href="/">← Back</a>
+  </div>
+</nav>
+
+<div class="draft">⚠️ Draft template — not yet reviewed by counsel. Replace the <code>[BRACKETED]</code> placeholders and have a lawyer review before public launch.</div>
+
+<main class="legal">
+  <h1>Privacy Policy</h1>
+  <p class="eff">Effective: 20 June 2026 · Operated by Fallacie Creator Studio LLC ("Phantom", "we", "us")</p>
+
+  <p>Phantom builds AI-generated marketing creative for businesses. This policy explains what we collect, why, how long we keep it, and who we share it with.</p>
+
+  <h2>1. The short version (data label)</h2>
+  <p>At a glance, here is every category of data we touch:</p>
+  <table class="nutrition">
+    <thead>
+      <tr><th>Data type</th><th>Collected</th><th>Why</th><th>Shared with</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Account info (email / username, password hash)</td><td>Yes</td><td>Sign-in, account security</td><td>Nobody (stored by us)</td></tr>
+      <tr><td>Business profile &amp; website content (scraped from the URL you provide)</td><td>Yes</td><td>To analyze your brand and generate on-brand content</td><td>Anthropic (analysis)</td></tr>
+      <tr><td>Generated media (reels, posts, phantom faces)</td><td>Yes</td><td>The product output you receive</td><td>Enhancor (generation), Cloudflare R2 (storage)</td></tr>
+      <tr><td>Usage &amp; device data (IP address, request logs, timestamps)</td><td>Yes</td><td>Security, rate-limiting, debugging, abuse prevention</td><td>Nobody (stored by us)</td></tr>
+      <tr><td>Payment metadata</td><td>Not yet (Stripe not active)</td><td>Billing, when enabled</td><td>Stripe (when enabled)</td></tr>
+      <tr><td>Social-account tokens</td><td>Not yet (deploy not active)</td><td>Publishing on your behalf, when enabled</td><td>Ayrshare (when enabled)</td></tr>
+    </tbody>
+  </table>
+  <p>We do <strong>not</strong> sell your data, and we do not use your business content to train third-party models beyond what is required to generate your output.</p>
+
+  <h2>2. How we use your data</h2>
+  <ul>
+    <li>To run the product: analyze your brand, generate and store your creative, and show it back to you.</li>
+    <li>To secure the service: rate-limit, detect abuse, and debug errors (IP + request logs).</li>
+    <li>To communicate with you about your account and generations.</li>
+  </ul>
+
+  <h2>3. AI processing &amp; disclosure</h2>
+  <p>Phantom's creators ("Phantoms") and the reels and posts they produce are <strong>AI-generated</strong>. Your brand inputs are sent to our AI sub-processors (below) solely to produce your output. Generated likenesses are synthetic and do not depict real people.</p>
+
+  <h2>4. Sub-processors</h2>
+  <ul>
+    <li><strong>Anthropic</strong> — AI analysis &amp; copywriting (Claude).</li>
+    <li><strong>Enhancor</strong> — AI image &amp; video generation.</li>
+    <li><strong>Cloudflare (R2)</strong> — media storage &amp; delivery.</li>
+    <li><strong>Stripe</strong> — payments (only once billing is enabled).</li>
+    <li><strong>Ayrshare</strong> — social publishing (only once deploy is enabled).</li>
+  </ul>
+
+  <h2>5. Data retention</h2>
+  <p>We keep account and generated content for as long as your account is active, and for a reasonable period afterward for backups and legal obligations. You may request deletion at any time (see §7).</p>
+
+  <h2>6. Security</h2>
+  <p>Sessions use opaque, randomly-generated tokens stored server-side; cookies are HttpOnly and (in production) Secure. Secrets are stored outside the codebase. No system is perfectly secure, but we apply reasonable safeguards.</p>
+
+  <h2>7. Your rights</h2>
+  <p>Depending on your jurisdiction you may have rights to access, correct, export, or delete your personal data. To exercise them, contact us at <a href="mailto:vaibhav@fallacie.com">vaibhav@fallacie.com</a>.</p>
+
+  <h2>8. Cookies &amp; sessions</h2>
+  <p>We use a single session cookie to keep you signed in. We do not use third-party advertising cookies.</p>
+
+  <h2>9. Children</h2>
+  <p>Phantom is a business tool not intended for anyone under 18. We do not knowingly collect data from children.</p>
+
+  <h2>10. Changes</h2>
+  <p>We may update this policy; material changes will be reflected by a new effective date here.</p>
+
+  <h2>11. Contact</h2>
+  <p>Fallacie Creator Studio LLC —<a href="mailto:vaibhav@fallacie.com">vaibhav@fallacie.com</a>.</p>
+</main>
+
+<footer class="foot">© 2026 Phantom · <a href="/terms.html">Terms</a> · <a href="/">Home</a></footer>
+
+</body>
+</html>

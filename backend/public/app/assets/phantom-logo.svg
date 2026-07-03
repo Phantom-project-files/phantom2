@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 110" fill="none" role="img" aria-label="Phantom">
+  <defs>
+    <linearGradient id="phantomGhostFill" x1="50" y1="5" x2="50" y2="105" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#BEA6FA"/>
+      <stop offset="0.55" stop-color="#8E63F0"/>
+      <stop offset="1" stop-color="#6E42CB"/>
+    </linearGradient>
+  </defs>
+  <path d="M12 105V42C12 17 31 5 50 5C69 5 88 17 88 42V105Q81 96 74 105Q67 96 60 105Q53 96 46 105Q39 96 32 105Q25 96 18 105Q15 100 12 105Z" fill="url(#phantomGhostFill)"/>
+  <rect x="33.5" y="40" width="8" height="24" rx="4" fill="#2C2545"/>
+  <rect x="58.5" y="40" width="8" height="24" rx="4" fill="#2C2545"/>
+</svg>

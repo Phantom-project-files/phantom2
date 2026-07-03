@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operator sign-in · Phantom</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="assets/phantom-logo.svg">
+<link rel="stylesheet" href="assets/phantom.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="index.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom <small>operator</small></a>
+  </div>
+</header>
+
+<main class="section" style="padding-top:40px; position:relative; overflow:hidden; min-height:calc(100dvh - 64px); display:grid; place-items:center">
+  <div class="aurora"></div><div class="grid-bg"></div>
+
+  <div class="relative" style="width:100%; max-width:420px">
+    <div class="card card-pad" style="padding:32px">
+
+      <div class="stack center" style="text-align:center; gap:10px; margin-bottom:20px">
+        <img class="mark" src="assets/phantom-logo.svg" alt="Phantom" style="width:40px; height:40px; filter:drop-shadow(0 6px 18px var(--accent-glow))">
+        <h1 class="h3" style="font-size:1.4rem">Operator sign-in</h1>
+        <p class="muted">Operator access only.</p>
+      </div>
+
+      <form id="loginForm" class="stack" style="gap:14px" novalidate>
+        <label class="stack" style="gap:6px">
+          <span class="dim mono" style="font-size:.74rem; letter-spacing:.1em">USERNAME</span>
+          <input class="input" type="text" name="username" autocomplete="username" required>
+        </label>
+
+        <label class="stack" style="gap:6px">
+          <span class="dim mono" style="font-size:.74rem; letter-spacing:.1em">PASSWORD</span>
+          <input class="input" type="password" name="password" autocomplete="current-password" required>
+        </label>
+
+        <div id="msg" class="dim" style="font-size:.85rem; min-height:1.2em"></div>
+
+        <button class="btn btn-primary btn-block" type="submit" id="submitBtn" style="height:48px">
+          Sign in
+        </button>
+      </form>
+
+    </div>
+  </div>
+</main>
+
+<script>
+  // Pull post-login redirect from ?next= (preserved by requireAdminPage). Default to console.
+  const params = new URLSearchParams(location.search);
+  const nextUrl = params.get('next') || '/app/admin.html';
+
+  const form = document.getElementById('loginForm');
+  const msg = document.getElementById('msg');
+  const btn = document.getElementById('submitBtn');
+  if (params.get('expired')) { msg.style.color = 'var(--text-2)'; msg.textContent = 'Your session expired — please sign in again.'; }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    msg.textContent = '';
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    try {
+      const fd = new FormData(form);
+      const r = await fetch('/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: fd.get('username'), password: fd.get('password') }),
+        credentials: 'same-origin',
+      });
+      const data = await r.json();
+      if (!r.ok || !data.success) throw new Error(data.error || 'sign-in failed');
+      location.replace(nextUrl);
+    } catch (err) {
+      msg.style.color = 'var(--danger, #ff5470)';
+      msg.textContent = err.message;
+      btn.disabled = false; btn.textContent = 'Sign in';
+    }
+  });
+</script>
+
+</body>
+</html>
