@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Let's meet your brand · Phantom</title>
+<meta name="description" content="Tell Phantom about your business. We'll handle the rest.">
+<link rel="icon" href="assets/phantom-logo.svg">
+<link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/phantom.js"></script>
+<script src="assets/track.js"></script>
+
+<style>
+  body { background:var(--bg); overflow:hidden; }
+  body::before {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(720px 480px at 50% 0%, rgba(124,92,255,.16), transparent 60%),
+      radial-gradient(640px 420px at 50% 100%, rgba(54,226,196,.06), transparent 65%);
+  }
+
+  .min-nav { position:sticky; top:0; z-index:10; height:72px;
+    background:rgba(10,11,16,.55); backdrop-filter:blur(18px); }
+  .min-nav .inner { max-width:1080px; margin-inline:auto; padding:0 24px;
+    height:100%; display:flex; align-items:center; gap:14px; }
+  .min-brand { display:inline-flex; align-items:center; gap:10px;
+    font-family:var(--display); font-weight:700; font-size:1.05rem; letter-spacing:-.02em; color:var(--text); }
+  .min-brand img { width:26px; height:26px; filter:drop-shadow(0 4px 12px var(--accent-glow)); }
+  .min-spacer { flex:1; }
+
+  .stage {
+    position:relative; z-index:1;
+    min-height:calc(100dvh - 72px);
+    display:grid; place-items:center;
+    padding:24px;
+  }
+
+  /* ============ progress dots ============ */
+  .dots {
+    position:absolute; top:24px; left:50%; transform:translateX(-50%);
+    display:flex; gap:8px; z-index:2;
+  }
+  .dots span {
+    width:24px; height:4px; border-radius:999px; background:var(--hairline-2);
+    transition:background .3s var(--ease), width .3s var(--ease);
+  }
+  .dots span.active { background:var(--accent-2); width:36px; }
+  .dots span.done { background:var(--accent); }
+
+  /* ============ screens ============ */
+  .screens { position:relative; width:100%; max-width:560px; }
+  .screen {
+    position:absolute; inset:0; opacity:0; pointer-events:none;
+    transform:translateY(12px);
+    transition:opacity .35s var(--ease), transform .35s var(--ease);
+    text-align:center;
+  }
+  .screen.show { position:relative; opacity:1; pointer-events:auto; transform:translateY(0); }
+
+  .screen .eyebrow { color:var(--accent-2); display:block; margin-bottom:18px; }
+  .screen h1 {
+    font-family:var(--display); font-weight:600; letter-spacing:-.03em;
+    font-size:clamp(2rem, 5vw, 3rem); line-height:1.1; color:var(--text);
+    margin:0 0 14px;
+  }
+  .screen p.sub {
+    color:var(--text-2); font-size:1.02rem; line-height:1.5;
+    max-width:38ch; margin:0 auto 36px;
+  }
+
+  /* ============ big rounded input ============ */
+  .big-input {
+    width:100%; max-width:480px; margin:0 auto 22px;
+    display:flex; align-items:center;
+    background:var(--surface); border:1.5px solid var(--hairline-2);
+    border-radius:999px; padding:6px 8px 6px 28px;
+    transition:border-color .15s var(--ease), box-shadow .15s var(--ease), background .15s var(--ease);
+  }
+  .big-input:focus-within {
+    border-color:var(--accent);
+    box-shadow:0 0 0 5px rgba(124,92,255,.18);
+    background:var(--surface-2);
+  }
+  .big-input input {
+    flex:1; height:56px; border:0; background:transparent; color:var(--text);
+    font-size:1.1rem; font-family:var(--font); outline:none; padding:0;
+  }
+  .big-input input::placeholder { color:var(--text-3); }
+  .big-input .go {
+    width:44px; height:44px; border:0; border-radius:50%; cursor:pointer;
+    background:linear-gradient(180deg, var(--accent-2), var(--accent));
+    color:var(--on-accent); display:grid; place-items:center;
+    box-shadow:0 0 0 1px rgba(124,92,255,.4), 0 8px 24px -6px var(--accent-glow);
+    transition:transform .15s var(--ease);
+  }
+  .big-input .go:hover { transform:scale(1.05); }
+  .big-input .go:disabled { opacity:.4; cursor:not-allowed; }
+  .big-input .go svg { width:18px; height:18px; }
+
+  .err {
+    color:var(--danger); font-size:.85rem; min-height:1.2em;
+    margin-top:4px;
+  }
+
+  .back-btn {
+    display:inline-flex; align-items:center; gap:6px;
+    background:transparent; border:0; color:var(--text-3);
+    font-size:.88rem; cursor:pointer; padding:8px 14px; border-radius:999px;
+    transition:color .15s var(--ease), background .15s var(--ease);
+  }
+  .back-btn:hover { color:var(--text); background:var(--surface); }
+
+  /* ============ loading screen ============ */
+  .loader-wrap { display:flex; flex-direction:column; align-items:center; gap:32px; }
+  .loader {
+    width:96px; height:96px; position:relative;
+    border-radius:50%;
+    background:conic-gradient(from 0deg, transparent, var(--accent-2), transparent 70%);
+    animation:spin 1.4s linear infinite;
+  }
+  .loader::before {
+    content:""; position:absolute; inset:8px;
+    border-radius:50%; background:var(--bg);
+  }
+  .loader::after {
+    content:""; position:absolute; inset:22px;
+    border-radius:50%;
+    background:radial-gradient(circle at center, rgba(124,92,255,.5), transparent 70%);
+    filter:blur(4px);
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .load-status {
+    font-family:var(--mono); font-size:.78rem; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--text-3);
+    min-height:1.2em;
+    transition:opacity .25s var(--ease);
+  }
+
+  @media (max-width:640px) {
+    .screen h1 { font-size:2rem; }
+    .big-input { padding:6px 6px 6px 22px; }
+    .big-input input { height:50px; font-size:1rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .loader { animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="min-nav">
+  <div class="inner">
+    <a class="min-brand" href="index.html">
+      <img src="assets/phantom-logo.svg" alt=""> Phantom
+    </a>
+    <span class="min-spacer"></span>
+    <a class="btn btn-quiet btn-sm" href="signup.html">Sign in</a>
+  </div>
+</header>
+
+<main class="stage">
+
+  <div class="dots" id="dots" aria-hidden="true">
+    <span class="active"></span>
+    <span></span>
+    <span></span>
+  </div>
+
+  <div class="screens">
+
+    <!-- Step 1: business name -->
+    <section class="screen show" id="step-1" aria-labelledby="q1">
+      <span class="eyebrow">step 1 of 3</span>
+      <h1 id="q1">Let's get to know your brand.</h1>
+      <p class="sub">Drop in the business name — Phantom takes it from there.</p>
+      <form id="form1" autocomplete="off" novalidate>
+        <div class="big-input">
+          <input id="bizName" name="business_name" type="text" autocomplete="organization"
+                 placeholder="Your brand" required autofocus>
+          <button class="go" type="submit" aria-label="Next" id="go1" disabled>
+            <i data-icon="arrow-right"></i>
+          </button>
+        </div>
+        <p class="err" id="err1"></p>
+      </form>
+    </section>
+
+    <!-- Step 2: business website -->
+    <section class="screen" id="step-2" aria-labelledby="q2">
+      <span class="eyebrow">step 2 of 3</span>
+      <h1 id="q2">Where do you live online?</h1>
+      <p class="sub">Drop in your website. Phantom reads your products, brand and audience straight from it.</p>
+      <form id="form2" autocomplete="off" novalidate>
+        <div class="big-input">
+          <input id="bizSite" name="business_website" type="url" inputmode="url"
+                 autocomplete="url" placeholder="yourbrand.com">
+          <button class="go" type="submit" aria-label="Begin" id="go2" disabled>
+            <i data-icon="arrow-right"></i>
+          </button>
+        </div>
+        <p class="err" id="err2"></p>
+      </form>
+      <button type="button" class="back-btn" id="back2" style="margin-top:18px">
+        <i data-icon="arrow-left" data-size="14"></i> back
+      </button>
+    </section>
+
+    <!-- Step 3: loading -->
+    <section class="screen" id="step-3" aria-labelledby="q3" aria-live="polite">
+      <div class="loader-wrap">
+        <div class="loader" aria-hidden="true"></div>
+        <div style="text-align:center">
+          <h1 id="q3" style="font-size:clamp(1.5rem,3.5vw,2rem); margin-bottom:14px">
+            We're gathering everything about <span id="loadName" style="color:var(--accent-2)">your business</span>.
+          </h1>
+          <p class="load-status" id="loadStatus">starting research…</p>
+          <button type="button" class="back-btn" id="back3" style="display:none; margin-top:18px">
+            <i data-icon="arrow-left" data-size="14"></i> try a different website
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<script>
+Phantom.ready(function () {
+  var P = window.Phantom;
+
+  var screens = { 1: P.$('#step-1'), 2: P.$('#step-2'), 3: P.$('#step-3') };
+  var dots = P.$$('#dots span');
+  var current = 1;
+
+  function show(step) {
+    Object.keys(screens).forEach(function (k) { screens[k].classList.remove('show'); });
+    screens[step].classList.add('show');
+    dots.forEach(function (d, i) {
+      d.classList.remove('active', 'done');
+      if (i + 1 < step) d.classList.add('done');
+      else if (i + 1 === step) d.classList.add('active');
+    });
+    current = step;
+    var focusable = screens[step].querySelector('input, button');
+    if (focusable && step < 3) setTimeout(function () { focusable.focus(); }, 200);
+  }
+
+  // ---- prefill from localStorage if user returns ----
+  try {
+    var prev = JSON.parse(localStorage.getItem('phantom_intake') || 'null');
+    if (prev && prev.business_name) P.$('#bizName').value = prev.business_name;
+    if (prev && prev.business_website) P.$('#bizSite').value = prev.business_website;
+  } catch (e) {}
+
+  // ---- enable/disable next buttons based on input ----
+  function bindEnable(inputSel, btnSel, validate) {
+    var input = P.$(inputSel), btn = P.$(btnSel);
+    function check() { btn.disabled = !validate((input.value || '').trim()); }
+    input.addEventListener('input', check); check();
+  }
+  function validDomain(v) {
+    if (!v) return false;
+    var bare = v.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0];
+    return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(bare);
+  }
+  bindEnable('#bizName', '#go1', function (v) { return v.length >= 2; });
+  bindEnable('#bizSite', '#go2', validDomain);
+
+  // ---- step 1 → 2 (local only — 2.0 creates the intake in one call at step 2) ----
+  P.$('#form1').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var name = (P.$('#bizName').value || '').trim();
+    if (name.length < 2) { P.$('#err1').textContent = 'Tell us your business name to continue.'; return; }
+    P.$('#err1').textContent = '';
+    try {
+      var st = JSON.parse(localStorage.getItem('phantom_intake') || '{}');
+      st.business_name = name;
+      localStorage.setItem('phantom_intake', JSON.stringify(st));
+    } catch (err) {}
+    show(2);
+  });
+
+  P.$('#back2').addEventListener('click', function () { show(1); });
+  P.$('#back3').addEventListener('click', function () {
+    P.$('#back3').style.display = 'none';
+    var stageEl = P.$('#loadStatus');
+    stageEl.style.color = ''; stageEl.textContent = 'starting research…';
+    show(2);
+  });
+
+  // ---- step 2 → 3 (create the intake, kick off research) ----
+  P.$('#form2').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var site = (P.$('#bizSite').value || '').trim();
+    if (!validDomain(site)) {
+      P.$('#err2').textContent = 'That doesn\'t look like a valid website.'; return;
+    }
+    P.$('#err2').textContent = '';
+    var name = (P.$('#bizName').value || '').trim();
+    if (name.length < 2) { show(1); return; }
+    var btn = P.$('#go2');
+    btn.disabled = true;
+    track('intake.submitted', { website: site });
+    P.api('/api/intake', { method:'POST', body:{ business_name:name, website:site } })
+      .then(function (d) {
+        if (!d.success) throw new Error(d.error || 'failed to start');
+        try {
+          localStorage.setItem('phantom_intake', JSON.stringify({
+            intake_id: d.intake_id, business_name: name, business_website: site,
+          }));
+        } catch (err) {}
+        P.$('#loadName').textContent = name;
+        show(3);
+        pollIntake(d.intake_id);
+      })
+      .catch(function (err) {
+        P.$('#err2').textContent = err.message || 'failed to start';
+      })
+      .finally(function () { btn.disabled = false; });
+  });
+
+  // Poll /status until the proposal (value_prop) is ready, then hand off to
+  // proposal.html — it renders instantly once value_prop exists.
+  var LOAD_STEPS = ['scanning your website…', 'reading your products…', 'studying your audience…', 'writing your proposal…'];
+  function pollIntake(intakeId) {
+    var stageEl = P.$('#loadStatus');
+    var attempts = 0;
+    var MAX = 72;                    // 72 * 2.5s = 3 min cap
+    var t = setInterval(function () {
+      attempts++;
+      P.api('/api/intake/' + encodeURIComponent(intakeId) + '/status').then(function (d) {
+        if (!d.success) { clearInterval(t); stageEl.textContent = 'status fetch failed'; P.$('#back3').style.display = ''; return; }
+        if (d.value_prop) {
+          clearInterval(t);
+          stageEl.textContent = 'all set — opening your proposal…';
+          setTimeout(function () { location.href = 'proposal.html?intake=' + encodeURIComponent(intakeId); }, 700);
+        } else if (d.status === 'failed') {
+          clearInterval(t);
+          stageEl.style.color = 'var(--danger, #ff5470)';
+          stageEl.textContent = 'we couldn\'t read that site — try a different one.';
+          P.$('#back3').style.display = '';
+          track('intake.scrape_failed');
+        } else if (attempts >= MAX) {
+          clearInterval(t);
+          stageEl.style.color = 'var(--warning, #f4ce6c)';
+          stageEl.textContent = 'taking longer than expected — we\'ll keep working.';
+          setTimeout(function () { location.href = 'proposal.html?intake=' + encodeURIComponent(intakeId); }, 1400);
+        } else {
+          var msg = LOAD_STEPS[Math.min(Math.floor(attempts / 4), LOAD_STEPS.length - 1)];
+          if (stageEl.textContent !== msg) {
+            stageEl.style.opacity = '0';
+            setTimeout(function () { stageEl.textContent = msg; stageEl.style.opacity = '1'; }, 200);
+          }
+        }
+      }).catch(function () { /* ignore transient */ });
+    }, 2500);
+  }
+});
+</script>
+
+</body>
+</html>

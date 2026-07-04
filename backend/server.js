@@ -670,7 +670,11 @@ app.use(express.static(path.join(__dirname, 'public'), {
   },
 }));
 
-app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'coming-soon.html')));
+// The funnel entry. Under COMING_SOON=1 the gate middleware already swaps this
+// for coming-soon.html unless an operator session exists; at launch (or local
+// preview with COMING_SOON=0) everyone lands on the funnel. Redirect rather
+// than sendFile so the landing's relative asset paths (/app/assets/…) resolve.
+app.get('/', (_req, res) => res.redirect(302, '/app/index.html'));
 
 // ── errors ────────────────────────────────────────────────────────────────────
 app.use('/api', (_req, res) => res.status(404).json({ success: false, error: 'not found' }));
