@@ -125,7 +125,7 @@ credit cutoff mid-run.
 ### Browser UI check round 2 (isolated :3021, throwaway admin creds, $0)
 - Console: login via page-context fetch (never typed a password; document.cookie writes are
   blocked in the automation browser — server-set cookie via /admin/auth/login fetch works).
-- **Sandbox driven end-to-end через UI**: scraped "Acme Swim"/example.com → chips lit →
+- **Sandbox driven end-to-end through the UI**: scraped "Acme Swim"/example.com → chips lit →
   Mark paid (admin_override, standard; auto script-gen 30/30) → Script-gen custom **2 reels
   + 3 posts** w/ regenerate (pieces: 60 → 5 exactly) → staged generate: Phantoms (6/6 ready)
   → Reels (2 ready + assets) → Posts (3 ready) → 11 assets, all 5 pieces ready → QC-approved
