@@ -76,6 +76,24 @@
     </div>
 
     <div class="card card-pad panel">
+      <h2>Audio library <span id="audioMode"></span></h2>
+      <p class="dim" style="font-size:.8rem; margin:0 0 12px">Reels are cut + previewed against these tracks; the download ships silent with an instruction naming the sound. Upload rights-cleared tracks, or sync trending from Instagram.</p>
+      <form id="audioForm" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap:8px; margin-bottom:12px; align-items:end">
+        <label style="font-size:.7rem; color:var(--text-3)">Track file (mp3)<input class="input" type="file" id="audioFile" accept="audio/*" required></label>
+        <label style="font-size:.7rem; color:var(--text-3)">Title<input class="input" name="title" placeholder="Golden Hour" required></label>
+        <label style="font-size:.7rem; color:var(--text-3)">Artist<input class="input" name="artist" placeholder="optional"></label>
+        <label style="font-size:.7rem; color:var(--text-3)">Vibe tags<input class="input" name="vibe" placeholder="upbeat, summer"></label>
+        <label style="font-size:.7rem; color:var(--text-3)">Source
+          <select class="input" name="source"><option value="operator_upload">operator_upload</option><option value="trending_open">trending_open</option><option value="trending_ig">trending_ig</option></select></label>
+        <label style="font-size:.7rem; color:var(--text-3)">Find-it URL<input class="input" name="source_url" placeholder="IG audio / track link"></label>
+        <button class="btn btn-primary" type="submit" id="audioBtn" style="height:42px">Upload</button>
+        <button class="btn" type="button" id="syncBtn" style="height:42px">Sync IG trending</button>
+      </form>
+      <div id="audioMsg" class="dim" style="font-size:.82rem; min-height:1em; margin-bottom:8px"></div>
+      <div id="audioPanel"><div class="empty">loading…</div></div>
+    </div>
+
+    <div class="card card-pad panel">
       <h2>Funnel — sessions per stage (7d)</h2>
       <div id="funnelPanel"><div class="empty">loading…</div></div>
     </div>
@@ -179,6 +197,52 @@ async function refresh() {
   } catch (e) { console.error(e); }
 }
 
+async function loadAudio() {
+  try {
+    const a = await j('/api/admin/audio');
+    document.getElementById('audioMode').innerHTML =
+      '<span class="badge ' + (a.trending_mode === 'live' ? 'ok' : 'warn') + '">trending: ' + esc(a.trending_mode) + '</span>'
+      + '<span class="badge ' + (a.ffmpeg ? 'ok' : 'warn') + '">ffmpeg: ' + (a.ffmpeg ? 'yes' : 'no') + '</span>'
+      + '<span class="badge">' + a.tracks.length + ' track' + (a.tracks.length === 1 ? '' : 's') + '</span>';
+    const rows = a.tracks.map((t) => [
+      t.id, t.title, t.artist || '—', t.source,
+      (t.vibe_tags ? JSON.parse(t.vibe_tags).join(', ') : '—'),
+      t.source_url ? '↗' : '—',
+    ]);
+    document.getElementById('audioPanel').innerHTML = table(['id', 'title', 'artist', 'source', 'vibes', 'find'], rows);
+  } catch (e) { console.error(e); }
+}
+
+document.getElementById('audioForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('audioBtn'), msg = document.getElementById('audioMsg');
+  const f = document.getElementById('audioFile').files[0];
+  if (!f) { msg.textContent = 'pick a track file first'; return; }
+  const fd = new FormData(e.target);
+  const qs = new URLSearchParams({
+    title: fd.get('title') || f.name, artist: fd.get('artist') || '', vibe: fd.get('vibe') || '',
+    source: fd.get('source') || 'operator_upload', source_url: fd.get('source_url') || '',
+  });
+  btn.disabled = true; msg.textContent = 'uploading ' + f.name + '…';
+  try {
+    const r = await j('/api/admin/audio?' + qs.toString(), { method: 'POST', headers: { 'Content-Type': 'audio/mpeg' }, body: await f.arrayBuffer() });
+    if (!r.success) throw new Error(r.error);
+    msg.textContent = 'added track #' + r.id; e.target.reset(); loadAudio();
+  } catch (err) { msg.textContent = 'error: ' + err.message; }
+  btn.disabled = false;
+});
+
+document.getElementById('syncBtn').addEventListener('click', async () => {
+  const msg = document.getElementById('audioMsg');
+  msg.textContent = 'syncing trending audio…';
+  try {
+    const r = await j('/api/admin/audio/sync-trending', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audio_type: 'music', limit: 8, ads_only: true }) });
+    if (!r.success) throw new Error(r.error);
+    msg.textContent = r.mode + ' sync: +' + r.added + ' added, ' + r.skipped + ' skipped of ' + r.fetched;
+    loadAudio();
+  } catch (err) { msg.textContent = 'error: ' + err.message; }
+});
+
 window.overrideIntake = async (id) => {
   if (!confirm('Mark this intake paid via admin override? (skips OAuth + Stripe; unlocks generation)')) return;
   const r = await j('/api/admin/intake/' + id + '/override', {
@@ -212,6 +276,7 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 });
 
 refresh();
+loadAudio();
 setInterval(refresh, 10_000);
 
 fetch('/version').then((r) => r.json()).then((d) => {

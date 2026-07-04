@@ -289,3 +289,18 @@ isn't a valid IG business-account id (those are ~17-digit numbers) + no access t
 operator gets: (1) the numeric IG business-account id via Graph Explorer, (2) a System User token
 w/ instagram_basic + instagram_content_publish. Until then trending audio = seeded/operator-upload
 tracks (source='trending_ig'); the full delivery pipeline works on those. NOT a blocker for launch.
+
+## 2026-07-04 — Console Audio panel (option 3) + real-audio demo (option 2)
+- **admin.html Audio library panel**: trending/ffmpeg/count badges (GET /api/admin/audio), track
+  table, upload form (file → arrayBuffer POST /api/admin/audio?title&artist&vibe&source&source_url,
+  Content-Type audio/mpeg), "Sync IG trending" button (POST /api/admin/audio/sync-trending
+  {ads_only}). Closes the "no console audio UI, curl-only" gap the audio agent flagged. Console
+  inline JS `node --check` clean; panel markup served; all 3 endpoints pass.
+- **Real-audio demo**: generated 3 rights-free triad+kick beds via ffmpeg (Sunset Boulevard /
+  Neon Nights / Coastal Drive), uploaded through the real route (#8-10). Dropped the sine
+  placeholder (track 4) so reel 151's "upbeat…pop" vibe now picks **Neon Nights**; re-assembled →
+  silent deliverable + preview with a real AAC stream (11.5s) + instruction naming Neon Nights +
+  find-it URL. Gallery plays preview 360 with music; download stays silent. Library = 6 tracks.
+  (Beds are placeholder demo audio — operator swaps in their licensed library / live IG trending.)
+- Note: operator must re-login to the console (sessions were revoked at the 2026-07-04 admin-pw
+  rotation) — new password via `grep ADMIN_PASSWORD backend/.env`.
