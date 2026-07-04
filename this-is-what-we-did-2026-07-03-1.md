@@ -96,3 +96,17 @@ Two more live-only bugs caught and fixed during the run:
   added `http://localhost:3020/auth/google/callback` → account chooser now renders with
   correct scopes (openid email profile) + state cookie. Awaiting operator click-through;
   users-table watcher armed to verify the callback upsert.
+
+### Checklist item 3 — Google OAuth ✅ VERIFIED END-TO-END
+Three sequential failures diagnosed live, each one layer deeper (this is the debugging record):
+1. `redirect_uri_mismatch` at Google — localhost redirect URI wasn't registered → operator added
+   `http://localhost:3020/auth/google/callback` (exact string; http, port, no trailing slash).
+2. "state cookie missing or expired" at our callback — STATE_TTL_SECONDS=600 is a 10-min
+   anti-CSRF window and the URI fix outlasted it. Working as designed; re-ran /start.
+3. "token exchange failed" HTTP 401 — paste typo in .env: line read `OGLE_CLIENT_SECRET=`
+   (leading GO eaten), so the exchange went out with an empty secret. sed'd the var name,
+   restarted.
+Final run: start → account chooser → consent → callback → **users row (Vaibhav Mathur,
+google_sub set) + user_sessions row + org auto-created + redirect to ?next target** ✓.
+COMING_SOON gate note: /auth/google/start is gated for anon; the admin cookie bypasses in
+dev. Customer flow opens when the gate drops.
