@@ -141,3 +141,18 @@ credit cutoff mid-run.
   introduced by the redesign. Self-hosting the three families is a launch-hardening item.
 - The sandbox "Mark paid" auto-runs script-gen at plan volume; use Script-gen w/ regenerate
   for custom counts after (or script-gen first, but paying re-enqueues once — last run wins).
+
+## Prompt 3 — first REAL generation through the new sandbox (Blue Bottle Coffee)
+Operator logged in and ran it themselves on :3020: scrape (3rd attempt clean; first two
+failed — site blocked scraper), Override→paid (standard), staged generate **1 reel + 1 post**.
+Verified server-side while in flight, then to completion:
+- 6 phantoms rendered (real Fal), post 289 ready, reel 286: 2 Seedance shots → beat-cut
+  assemble vs track 9 "Neon Nights" (14 onsets, cuts snapped, chrome_overlay).
+- **Dual output confirmed by ffprobe**: master zGU5…mp4 audio=NONE 11.5s (the download);
+  preview SlBl…mp4 audio=AAC 11.5s (gallery playback). meta audio_mode=silent_delivery,
+  instruction "Neon Nights by Phantom Beds, cut @ 5.5s".
+- Gallery payload: both pieces, reel plays preview asset 374 w/ attach-instruction.
+- **Real spend: $4.99** (6 faces $0.90 · 2 keyframes $0.30 · 2 video shots $3.64 ·
+  1 post image $0.15). Monitor watched the in-flight Fal polls (attempt 4/12, healthy).
+- The intake's other 58 pieces stay briefed ($0) — staged generation worked exactly as
+  designed on real money.
