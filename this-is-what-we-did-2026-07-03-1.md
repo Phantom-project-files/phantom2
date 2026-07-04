@@ -280,3 +280,12 @@ authorization = their login only). Delivered the wrap-around instead:
   wrong id = page vs IG id). Confirmed it reports mock mode cleanly today.
 - Going live = set IG_AUDIO_ACCESS_TOKEN + IG_AUDIO_USER_ID (both operator-obtained), restart,
   POST /api/admin/audio/sync-trending {ads_only:true}. Code path already verified in mock.
+
+## 2026-07-04 — IG Audio go-live PAUSED (operator can't get creds yet)
+Operator had a colon-formatted `IG_AUDIO_USER_ID:` (dotenv needs `=`) and a 23-char value that
+isn't a valid IG business-account id (those are ~17-digit numbers) + no access token. Reset both
+`.env` keys to clean empty → back in mock mode (verify-trending-live confirms). Runbook
+(docs/runbooks/instagram-audio-setup.md) + verify-trending-live.js are ready for whenever the
+operator gets: (1) the numeric IG business-account id via Graph Explorer, (2) a System User token
+w/ instagram_basic + instagram_content_publish. Until then trending audio = seeded/operator-upload
+tracks (source='trending_ig'); the full delivery pipeline works on those. NOT a blocker for launch.
