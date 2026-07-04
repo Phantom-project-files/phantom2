@@ -75,7 +75,7 @@ v1 (`000_Phantom` → online-phantom.com) is the reference implementation and le
      1 reel (2 shots, assembled mp4) all real. Two live-only fixes landed: queue reads on the
      base app path (subpath status 405s) + `storage.fetchableUrl()` data-URI refs for local
      backend. Item 1 is CLOSED — remaining Fal work is just watching real spend vs estimates.
-2. **Rotate keys** — Claude + Fal keys sat in plaintext in `~/Downloads/Phantom2.0.env.rtf`.
+2. **Rotate keys** — ✅ DONE 2026-07-03: both rotated + live-verified (old Anthropic 401; old Fal deleted in dashboard, edge propagation lags). .env chmod 600, rtf trashed. NOTE: rotate ADMIN_PASSWORD before prod — it sat in the same plaintext file.
 3. **Google OAuth** — create the OAuth client (GCP console), set GOOGLE_CLIENT_ID/SECRET +
    authorized redirect `https://<domain>/auth/google/callback`.
 4. **Stripe live** — webhook endpoint + STRIPE_WEBHOOK_SECRET; swap test keys for live at launch.

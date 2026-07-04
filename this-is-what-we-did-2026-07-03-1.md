@@ -58,3 +58,17 @@ Two more live-only bugs caught and fixed during the run:
   3 dead-422 edit requests from the pre-fix attempt should not bill (fal charges successes).
 - .env: MOCK_MEDIA_GEN=0, FAL_VIDEO_MODEL fixed to bytedance/seedance-2.0/image-to-video.
 - New: scripts/live-first-run.js (targeted 1-phantom-pair + 1-reel + 1-post enqueuer).
+
+### Checklist item 2 — KEY ROTATION ✅
+- Audit first: the Anthropic + Fal keys in `~/Downloads/Phantom2.0.env.rtf` were EXACTLY the
+  live `.env` keys (hash-compared). Only 2 copies on disk; `.env` never in git history; v1
+  project clean; Stripe keys in the rtf were test-mode (rotate at launch w/ item 4 anyway).
+- Operator rotated both in their dashboards. Verified live ($0 GETs): new Anthropic key 200 /
+  old 401 (dead); new Fal key 200 (prefix matches the single "Phantom" key in the dashboard,
+  created today). Old Fal key still answered 200 minutes after deletion — fal edge revocation
+  propagates slowly; dashboard shows it gone, operator confirmed revoked, moved on.
+- Hygiene: `.env` chmod 600; rtf moved to Trash by operator; scratchpad copies shredded;
+  admin password flagged for rotation before prod (also in the plaintext file).
+- Server restarted on rotated keys, boot clean.
+- BONUS ground truth: fal dashboard credits $14.07 after the run → actual billed $4.41 vs
+  our ledger estimate $4.39 (2¢ off) — estimate math is trustworthy, dead 422s not billed.
