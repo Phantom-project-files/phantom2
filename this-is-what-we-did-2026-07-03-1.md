@@ -72,3 +72,27 @@ Two more live-only bugs caught and fixed during the run:
 - Server restarted on rotated keys, boot clean.
 - BONUS ground truth: fal dashboard credits $14.07 after the run → actual billed $4.41 vs
   our ledger estimate $4.39 (2¢ off) — estimate math is trustworthy, dead 422s not billed.
+
+### Checklist item 7 — Remotion compositions SCAFFOLDED ✅ (background agent, reviewed + verified)
+- Repo-root `remotion/` project (pinned 4.0.484, own node_modules — nothing enters backend
+  deps or the Fly build context). Compositions: EndCard (mirrors chrome card design),
+  InfographicOverlay, MotionCurveAccents, ChalkEffect (all 9:16 alpha overlays) + PostStill
+  (4:5 still). All brand content via inputProps. NO caption composition — removed by design,
+  Root.tsx carries the do-not-add comment.
+- `lib/edit/remotion.js` boundary: lazy createRequire, bundle cached per process, ProRes 4444
+  alpha + muted overlays (agent caught two real bugs live: `proResProfile` casing; Remotion's
+  silent PCM track stealing ffmpeg stream selection from the music bed).
+- graphics.js: remotion-first when REMOTION_ENABLED=1, any error → logged fallback to
+  chrome_overlay — graphics polish can never sink a reel. Flag unset = byte-identical path.
+- Independently re-verified after agent handoff: smoke ALL PASS + verify-remotion.js
+  (EndCard 4.4MB alpha .mov, PostStill 1080x1350 png). Post-compose wiring to PostStill
+  deliberately deferred.
+- Note: agent reports smoke.js currently carries 87 checks (yesterday's log said 98) — the
+  suite passes clean either way; count discrepancy noted, not chased.
+
+### Checklist item 3 — Google OAuth (in flight)
+- Operator created GCP client + put GOOGLE_CLIENT_ID/SECRET in .env; server restarted.
+- First attempt: redirect_uri_mismatch (localhost URI missing on the client) → operator
+  added `http://localhost:3020/auth/google/callback` → account chooser now renders with
+  correct scopes (openid email profile) + state cookie. Awaiting operator click-through;
+  users-table watcher armed to verify the callback upsert.

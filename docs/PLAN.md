@@ -83,9 +83,14 @@ v1 (`000_Phantom` → online-phantom.com) is the reference implementation and le
    `phantom2-prod` + keys, secrets via `fly secrets set`.
 6. **Audio library** — upload rights-cleared tracks (console → Audio panel) with vibe tags;
    licensing solution still being evaluated by operator.
-7. **Remotion compositions** — the graphics pass currently ships the ffmpeg end-card backend;
-   scaffold the Remotion project (compositions per `graphics_notes`: infographics, motion curves,
-   chalk effects) behind `REMOTION_ENABLED=1`.
+7. **Remotion compositions** — ✅ SCAFFOLDED 2026-07-03: repo-root `remotion/` project
+   (4.0.484 pinned; own node_modules — nothing enters backend deps or the Fly image) with
+   EndCard / InfographicOverlay / MotionCurveAccents / ChalkEffect (9:16 alpha overlays) +
+   PostStill (4:5), all inputProps-driven (no hardcoded brand). `lib/edit/remotion.js` renders
+   them programmatically when `REMOTION_ENABLED=1`; graphics.js tries remotion first and falls
+   back to chrome_overlay on any error. Verified: `node scripts/verify-remotion.js` + an
+   end-to-end composite (alpha ProRes 4444 onto a reel, music intact). Default (flag unset)
+   unchanged — smoke ALL PASS. Captions stay REMOVED by design — no caption composition, ever.
 8. **Domain cutover** — point online-phantom.com at phantom2 once parity is verified.
 
 ## Ops notes

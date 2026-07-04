@@ -1,0 +1,22 @@
+{
+  "name": "phantom2-remotion",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Phantom 2.0 — Remotion graphics compositions (reel overlays + post stills). Rendered programmatically by backend/lib/edit/remotion.js when REMOTION_ENABLED=1; lives outside backend/ so none of this toolchain enters the backend npm tree or the Fly image (Docker context is backend/).",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render:endcard": "remotion render src/index.ts EndCard out/endcard.mov --codec prores --prores-profile 4444 --image-format png --pixel-format yuva444p10le"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.484",
+    "@remotion/cli": "4.0.484",
+    "@remotion/renderer": "4.0.484",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.484"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "typescript": "5.6.3"
+  }
+}

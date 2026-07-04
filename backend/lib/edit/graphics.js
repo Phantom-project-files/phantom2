@@ -9,9 +9,12 @@
 //       onto the last ~1.4s with ffmpeg's core `overlay` filter. Chosen over
 //       drawtext because drawtext is a BUILD-DEPENDENT filter (the operator's brew
 //       ffmpeg ships without it — found in real verification); overlay is always there.
-//   remotion (REMOTION_ENABLED=1) — full motion-graphics compositions driven by
-//       brief.graphics_notes. Scaffolding is on the post-build checklist; until
-//       then it flags and falls back to chrome_overlay.
+//   remotion (REMOTION_ENABLED=1) — motion-graphics compositions from the repo-root
+//       remotion/ project, driven by brief.graphics_notes: an animated EndCard
+//       always, plus one accent overlay (infographic / motion curves / chalk) when
+//       the notes ask for it. Rendered as alpha ProRes by lib/edit/remotion.js and
+//       ffmpeg-composited here. ANY remotion error falls back to chrome_overlay —
+//       graphics polish must never sink the reel.
 //
 // Returns { path, backend, flags } — a graphics failure never throws the reel away.
 
@@ -19,6 +22,8 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { FFMPEG } from './audio.js';
 import { htmlToPng, chromeAvailable } from './chrome-shot.js';
+import { remotionEnabled, accentForNotes, renderOverlay } from './remotion.js';
+import { logEvent } from '../logs.js';
 
 function ff(args, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
@@ -64,17 +69,58 @@ function endcardHtml(brand, accent) {
   </style></head><body><div class="card"><h1>${esc(brand)}</h1><div class="rule"></div></div></body></html>`;
 }
 
+// Remotion pass: animated EndCard over the same last-1.4s window as the chrome
+// card, plus one accent overlay (per graphics_notes) in the reel body. Overlays
+// arrive as alpha ProRes .movs; setpts shifts them to their start time, enable
+// gates compositing to the window, eof_action=pass hands frames back after.
+async function remotionPass({ inputPath, out, workDir, brand, accent, brief }) {
+  const dur = (await probeDuration(inputPath)) || 6;
+  const endStart = Math.max(0, dur - 1.4);
+  const endMov = path.join(workDir, 'endcard.mov');
+  await renderOverlay({ id: 'EndCard', inputProps: { logoText: brand, accent }, outPath: endMov });
+
+  const accentId = accentForNotes(brief?.graphics_notes);
+  const args = ['-i', inputPath, '-i', endMov];
+  const endChain = (label) => `${label}[end]overlay=0:0:eof_action=pass:enable='gte(t,${endStart.toFixed(2)})'`;
+  let filter = `[1:v]setpts=PTS-STARTPTS+${endStart.toFixed(2)}/TB,format=rgba[end];`;
+  if (accentId && dur > 4) { // short reels get the end-card only — no room for a beat
+    const accMov = path.join(workDir, 'accent.mov');
+    const inputProps = accentId === 'InfographicOverlay'
+      ? { headline: brief?.hook || brief?.caption || '', accent }
+      : { accent };
+    await renderOverlay({ id: accentId, inputProps, outPath: accMov });
+    args.push('-i', accMov);
+    const aStart = 0.6;
+    const aEnd = Math.min(aStart + 2.4, endStart);
+    filter += `[2:v]setpts=PTS-STARTPTS+${aStart.toFixed(2)}/TB,format=rgba[acc];`
+      + `[0:v][acc]overlay=0:0:eof_action=pass:enable='between(t,${aStart.toFixed(2)},${aEnd.toFixed(2)})'[v1];`
+      + endChain('[v1]');
+  } else {
+    filter += endChain('[0:v]');
+  }
+  await ff([...args, '-filter_complex', filter, '-c:a', 'copy', out], 240000);
+  return accentId && dur > 4 ? ['EndCard', accentId] : ['EndCard'];
+}
+
 export async function applyGraphics({ inputPath, workDir, piece, brief }) {
   const flags = [];
-  if (process.env.REMOTION_ENABLED === '1') {
-    flags.push('remotion requested but not scaffolded yet — chrome_overlay fallback (post-build checklist)');
-  }
   const brand = piece.tenant_slug.replace(/-[a-z0-9]{4}$/, '').replace(/-/g, ' ').toUpperCase() || 'PHANTOM';
+  const accent = process.env.POST_ACCENT_COLOR || '#9d86ff';
   const out = path.join(workDir, 'final.mp4');
+  if (remotionEnabled()) {
+    try {
+      const comps = await remotionPass({ inputPath, out, workDir, brand, accent, brief });
+      return { path: out, backend: 'remotion', flags: [...flags, `remotion comps: ${comps.join('+')}`] };
+    } catch (err) {
+      // polish, not payload — log and drop to the always-there chrome_overlay path
+      flags.push(`remotion graphics failed (${err.message.slice(0, 120)}) — chrome_overlay fallback`);
+      logEvent({ level: 'warn', event: 'remotion.fallback', tenantSlug: piece.tenant_slug, refId: piece.id, message: err.message.slice(0, 300) });
+    }
+  }
   try {
     if (!chromeAvailable()) throw new Error('no Chrome for end-card render');
     const cardPath = path.join(workDir, 'endcard.png');
-    await htmlToPng(endcardHtml(brand, process.env.POST_ACCENT_COLOR || '#9d86ff'), cardPath,
+    await htmlToPng(endcardHtml(brand, accent), cardPath,
       { width: 1080, height: 1920, scale: 1, transparent: true });
     const dur = await probeDuration(inputPath);
     const start = Math.max(0, (dur || 6) - 1.4);
