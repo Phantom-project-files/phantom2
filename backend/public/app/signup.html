@@ -28,6 +28,14 @@
       Continue with Google
     </a>
 
+    <div id="operatorPath" style="display:none; margin-top:18px">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; color:var(--text-3); font-size:.68rem; letter-spacing:.18em; text-transform:uppercase; font-family:var(--mono)">
+        <span style="flex:1; height:1px; background:var(--hairline-2)"></span>operator<span style="flex:1; height:1px; background:var(--hairline-2)"></span>
+      </div>
+      <a class="btn btn-block" id="operatorBtn" style="height:46px; display:flex; align-items:center; justify-content:center">Continue as operator →</a>
+      <p class="dim" style="font-size:.74rem; margin-top:8px; margin-bottom:0">Admin session detected — skip Google; pay or override at checkout.</p>
+    </div>
+
     <div id="notConfigured" style="display:none; margin-top:16px; padding:12px; border:1px solid rgba(255,180,84,.35); border-radius:10px; color:#ffb454; font-size:.82rem; text-align:left">
       Google sign-in isn't configured on this environment yet (needs GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).
       Operators: use the console's <strong>Override</strong> on this intake, then return to checkout.
@@ -44,6 +52,17 @@
 
   document.getElementById('googleBtn').href = '/auth/google/start?next=' + encodeURIComponent(next);
   document.getElementById('googleBtn').addEventListener('click', () => track('oauth.started', { plan }));
+
+  // Operator skip: an admin session already satisfies checkout's identity check
+  // (requireUserOrAdmin), so signing in with Google is unnecessary friction.
+  fetch('/api/config', { credentials: 'same-origin' }).then((r) => r.json()).then((d) => {
+    if (!d || !d.is_admin) return;
+    const op = document.getElementById('operatorPath');
+    const btn = document.getElementById('operatorBtn');
+    btn.href = next;
+    btn.addEventListener('click', () => track('signup.operator_skip', { plan }));
+    op.style.display = 'block';
+  }).catch(() => {});
 
   const err = params.get('oauth_error');
   if (err === 'not_configured') {

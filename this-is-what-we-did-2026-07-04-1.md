@@ -67,3 +67,34 @@ Chrome DevTools MCP, viewport 1440×900:
   live there); the UI check burned $0 by using the mock instance.
 - Landing reel wall uses transcoded v1 Fallacié renders as decorative backdrop — swap
   `public/app/assets/landing/` when 2.0 has its own showcase set.
+
+## Prompt 2 — operator unblock + sandbox + full UI redo (in progress)
+User feedback: can't reach generation (Google/Stripe wall), console needs a sandbox
+generation tab (scrape → custom reel/post counts → staged generate), UI unappealing →
+redo in the v1 design language. Subagents on opus/sonnet to save credits; prepare for
+credit cutoff mid-run.
+
+### Done so far (committed here)
+- `assets/phantom.js`: `mountAdminDashboard` pill (v1 port) — admin session ⇒ every
+  funnel page shows a top-center "Operator console" pill (probes /admin/auth/me).
+- `signup.html`: "Continue as operator →" appears when /api/config says is_admin —
+  skips Google (admin cookie already satisfies checkout's requireUserOrAdmin).
+- `checkout.html`: rebuilt — operators get a choice card (Override→paid via
+  POST /api/admin/intake/:id/override {plan}, or proceed to real Stripe); customers
+  get the old auto-redirect. Override → checkout-success → production unlocked.
+- Server already had EVERYTHING for the sandbox: POST /api/admin/intake (create),
+  /override, /scriptgen {reels,posts,regenerate}, /generate-media {phantoms,reels,posts},
+  /media-estimate, /production, /coverage, GET /api/admin/intakes.
+
+### NEXT (if this session dies, resume exactly here)
+1. Three agents redesign UI (specs in prompt): opus → admin.html console redesign +
+   Sandbox pipeline runner panel; sonnet → funnel pages (signup/checkout/success/
+   plans/proposal); sonnet → production.html + gallery.html. Constraints: preserve all
+   ids/endpoints/flows, no server/css/phantom.js/track.js/index/intake edits,
+   node --check inline JS, curl :3020 for 200.
+2. Then browser UI check on isolated :3021 mock (throwaway admin creds env-injected,
+   curl login → cookie into chrome-devtools; NEVER type passwords) — full operator
+   funnel: landing → wizard → proposal → plans → signup operator-skip → checkout
+   override → success → production generate (mock, $0) → gallery. Sandbox run in
+   console too. Mobile spot-check. Console-error sweep.
+3. smoke.js, commit, update memory phantom_project.md.

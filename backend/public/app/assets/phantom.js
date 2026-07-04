@@ -82,6 +82,33 @@
   P.markNav = () => { const f = location.pathname.split('/').pop() || 'index.html';
     P.$$('[data-nav]').forEach((a) => { if (a.dataset.nav === f) a.classList.add('active'); }); };
 
+  // Operator shortcut (v1 port): top-center "Operator console" pill on every page
+  // when an admin session exists (probes /admin/auth/me). Skipped on the console +
+  // operator sign-in page so it never doubles up.
+  P.mountAdminDashboard = () => {
+    if (document.getElementById('phantomAdminDashBtn')) return;
+    const here = location.pathname.split('/').pop();
+    if (['admin.html', 'admin-login.html'].includes(here)) return;
+    fetch('/admin/auth/me', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d || !d.success) return;
+        const btn = P.el('a', {
+          id: 'phantomAdminDashBtn',
+          href: '/app/admin.html',
+          'aria-label': 'Operator console',
+          style: 'position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:95; ' +
+                 'display:inline-flex; align-items:center; gap:7px; height:36px; padding:0 18px; ' +
+                 'border-radius:99px; background:linear-gradient(180deg,#9D86FF,#7C5CFF); color:#fff; ' +
+                 'text-decoration:none; font-weight:600; font-size:.82rem; ' +
+                 'box-shadow:0 8px 22px -8px rgba(124,92,255,.75), 0 0 0 1px rgba(124,92,255,.4);',
+          html: P.icon('grid', 16) + '<span>Operator console</span>',
+        });
+        document.body.appendChild(btn);
+      })
+      .catch(() => { /* best-effort */ });
+  };
+
   // Light version stamp (bottom-center) so you can tell which build is live.
   P.mountVersion = () => {
     if (document.getElementById('phantomVer')) return;
@@ -105,5 +132,5 @@
     else document.addEventListener('DOMContentLoaded', fn, { once: true });
   };
 
-  P.ready(() => { P.mountIcons(); P.markNav(); P.mountVersion(); P.$$('[data-year]').forEach((n) => (n.textContent = new Date().getFullYear())); });
+  P.ready(() => { P.mountIcons(); P.markNav(); P.mountVersion(); P.mountAdminDashboard(); P.$$('[data-year]').forEach((n) => (n.textContent = new Date().getFullYear())); });
 })();

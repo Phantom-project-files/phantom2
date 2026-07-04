@@ -12,10 +12,24 @@
 <body>
 
 <main class="section" style="min-height:100dvh; display:grid; place-items:center; padding:20px">
-  <div class="card card-pad" style="max-width:420px; width:100%; padding:32px; text-align:center">
+  <div class="card card-pad" style="max-width:440px; width:100%; padding:32px; text-align:center">
     <img class="mark" src="assets/phantom-logo.svg" alt="" style="width:40px; height:40px; margin-bottom:12px">
     <h1 class="h3" style="font-size:1.3rem" id="title">Taking you to secure checkout…</h1>
     <p class="muted" id="detail">Payments are handled by Stripe.</p>
+
+    <!-- Operator card: shown instead of the auto-redirect when an admin session
+         exists. Override = markIntakePaid(admin_override) — skips Stripe entirely. -->
+    <div id="operatorCard" style="display:none; margin-top:20px; text-align:left">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; color:var(--text-3); font-size:.68rem; letter-spacing:.18em; text-transform:uppercase; font-family:var(--mono)">
+        <span style="flex:1; height:1px; background:var(--hairline-2)"></span>operator<span style="flex:1; height:1px; background:var(--hairline-2)"></span>
+      </div>
+      <button class="btn btn-primary btn-block" id="overrideBtn" style="height:48px">Override — mark paid &amp; continue</button>
+      <button class="btn btn-block" id="realPayBtn" style="height:44px; margin-top:10px">Proceed to real checkout</button>
+      <p class="dim" style="font-size:.74rem; margin-top:10px; margin-bottom:0">
+        Override unlocks the pipeline exactly like a paid customer (via admin_override) — no Stripe involved.
+      </p>
+      <div id="opMsg" class="dim" style="font-size:.78rem; min-height:1.2em; margin-top:8px"></div>
+    </div>
   </div>
 </main>
 
@@ -25,7 +39,9 @@
   const plan = params.get('plan');
   if (!intakeId) location.replace('index.html');
 
-  (async () => {
+  const successUrl = 'checkout-success.html?intake=' + encodeURIComponent(intakeId);
+
+  async function realCheckout() {
     try {
       const r = await fetch('/api/intake/' + encodeURIComponent(intakeId) + '/checkout', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
@@ -43,6 +59,46 @@
       document.getElementById('detail').textContent = err.message + ' — go back to plans and try again.';
       track('checkout.error', { error: String(err.message).slice(0, 120) });
     }
+  }
+
+  async function operatorOverride() {
+    const btn = document.getElementById('overrideBtn');
+    const msg = document.getElementById('opMsg');
+    btn.disabled = true; msg.textContent = 'marking paid…';
+    try {
+      const r = await fetch('/api/admin/intake/' + encodeURIComponent(intakeId) + '/override', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+        body: JSON.stringify({ plan: plan || 'standard' }),
+      });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error || 'override failed');
+      track('checkout.operator_override', { plan: plan || 'standard' });
+      location.replace(successUrl);
+    } catch (err) {
+      msg.style.color = 'var(--danger, #ff5470)';
+      msg.textContent = err.message;
+      btn.disabled = false;
+    }
+  }
+
+  (async () => {
+    let isAdmin = false;
+    try {
+      const cfg = await (await fetch('/api/config', { credentials: 'same-origin' })).json();
+      isAdmin = !!(cfg && cfg.is_admin);
+    } catch { /* treat as customer */ }
+
+    if (!isAdmin) { realCheckout(); return; }
+
+    // Operator: pause the auto-redirect and offer the choice.
+    document.getElementById('title').textContent = 'Operator checkout';
+    document.getElementById('detail').textContent = (plan || 'selected') + ' plan · intake ' + intakeId;
+    document.getElementById('operatorCard').style.display = 'block';
+    document.getElementById('overrideBtn').addEventListener('click', operatorOverride);
+    document.getElementById('realPayBtn').addEventListener('click', () => {
+      document.getElementById('realPayBtn').disabled = true;
+      realCheckout();
+    });
   })();
 </script>
 
