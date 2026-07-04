@@ -3,15 +3,19 @@
 // `assemble_reel` job (auto-enqueued when a reel's shots finish in Phase 4):
 //   1. gather the reel's shots — its own fresh shots + campaign-pool siblings for
 //      reused slots (the cross-reel reuse payoff), ≤3 total (spec cap)
-//   2. pick a track from the operator library by brief.audio_vibe (no track →
-//      assemble WITHOUT audio + flag `no_audio` — honest, not blocking)
+//   2. pick a trending track from the library by brief.audio_vibe (no track →
+//      silent, no preview — honest, not blocking)
 //   3. detectCuts on the track → buildCutPlan (transitions snap to drops)
-//   4. ffmpeg: trim each shot to its segment → concat → lay the track under it
-//   5. graphics pass (lib/edit/graphics.js): brand end-card / text overlay
-//   6. final mp4 → R2 kind='reel' (ref piece) + edit_plan in meta
+//   4. ffmpeg: trim each shot to its segment → concat → graphics end-card
+//   5. TWO outputs (the trending-audio delivery model, 2026-07-04):
+//        · kind='reel'         — the SILENT master, the download deliverable
+//        · kind='reel_preview' — silent master + the trending track, GALLERY ONLY
+//      The customer previews with sound but downloads silent + an upload-instruction
+//      file (built from meta.audio_instruction) and attaches the sound natively —
+//      trending/commercial audio can't be legally baked into distributed content.
 //
 // MOCK_MEDIA_GEN=1 → skips ffmpeg (Phase-4 mock shots aren't real video) but
-// runs track-pick + cut-plan math and writes a mock final asset — full $0 chain.
+// runs track-pick + cut-plan math and writes both mock assets — full $0 chain.
 
 import fs from 'fs';
 import os from 'os';
@@ -53,6 +57,21 @@ async function fetchToFile(slug, r2Key, destPath) {
   fs.writeFileSync(destPath, Buffer.from(await r.arrayBuffer()));
 }
 
+// The upload-instruction data stored on the silent reel asset: which sound to add,
+// where to find it, and the in-video scene-change timestamps (so the customer can
+// confirm the beat sync). Built from the picked track + the cut plan.
+function audioInstructionFor(picked, cutPlan) {
+  if (!picked) return null;
+  const t = picked.track;
+  let acc = 0;
+  const cuts = [];
+  for (let i = 0; i < cutPlan.length - 1; i++) {
+    acc += Math.max(0.6, cutPlan[i].end - cutPlan[i].start);
+    cuts.push(Math.round(acc * 10) / 10);
+  }
+  return { track_title: t.title, track_artist: t.artist || null, source_url: t.source_url || null, start_sec: 0, cut_times: cuts };
+}
+
 // Reel's shot list: fresh (its own) first by slot, then campaign siblings to fill
 // up to the brief's frame count (≤3). Dedup by slot.
 function shotsForPiece(piece, frameCount) {
@@ -78,7 +97,7 @@ export async function runAssembleReel({ pieceId }) {
 
   const flags = [];
   const picked = pickTrack(brief.audio_vibe);
-  if (!picked) flags.push('no_audio: track library empty — reel assembled silent');
+  if (!picked) flags.push('no_track: library empty — silent master, no preview/instruction');
 
   const shotSec = parseInt(process.env.FAL_VIDEO_DURATION || '6', 10);
   const targetSec = shots.length * shotSec;
@@ -90,13 +109,26 @@ export async function runAssembleReel({ pieceId }) {
     const onsets = picked ? [2.1, 5.9, 8.2, 11.8, 14.1] : [];
     onsetsUsed = onsets.length;
     cutPlan = buildCutPlan({ shotCount: shots.length, targetSec, onsets, maxSegSec: shotSec });
-    const key = storage.makeKey(slug, 'reel', 'mp4');
-    await storage.put(slug, key, MOCK_MP4, 'video/mp4');
+    const audioInstruction = audioInstructionFor(picked, cutPlan);
+    const commonMeta = { mock: true, edit_plan: cutPlan, track_id: picked?.track?.id || null, track_score: picked?.score ?? null, shots: shots.map((s) => ({ slot: s.slot, reused: s.reused })), flags, graphics: 'mock' };
+    // silent master (the deliverable)
+    const reelKey = storage.makeKey(slug, 'reel', 'mp4');
+    await storage.put(slug, reelKey, MOCK_MP4, 'video/mp4');
     mediaAssets.record({
-      tenantSlug: slug, kind: 'reel', r2Key: key, contentType: 'video/mp4', sizeBytes: MOCK_MP4.length,
+      tenantSlug: slug, kind: 'reel', r2Key: reelKey, contentType: 'video/mp4', sizeBytes: MOCK_MP4.length,
       refKind: 'piece', refId: piece.id,
-      meta: { mock: true, edit_plan: cutPlan, track_id: picked?.track?.id || null, track_score: picked?.score ?? null, shots: shots.map((s) => ({ slot: s.slot, reused: s.reused })), flags, graphics: 'mock' },
+      meta: { ...commonMeta, audio_mode: picked ? 'silent_delivery' : 'silent_no_track', audio_instruction: audioInstruction },
     });
+    // preview WITH the trending track (gallery only) — only when a track exists
+    if (picked) {
+      const previewKey = storage.makeKey(slug, 'reel', 'mp4');
+      await storage.put(slug, previewKey, MOCK_MP4, 'video/mp4');
+      mediaAssets.record({
+        tenantSlug: slug, kind: 'reel_preview', r2Key: previewKey, contentType: 'video/mp4', sizeBytes: MOCK_MP4.length,
+        refKind: 'piece', refId: piece.id,
+        meta: { ...commonMeta, preview: true, track_id: picked.track.id },
+      });
+    }
   } else {
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom-edit-'));
     try {
@@ -130,23 +162,35 @@ export async function runAssembleReel({ pieceId }) {
       fs.writeFileSync(concatList, segs.map((s) => `file '${s}'`).join('\n'));
       const joined = path.join(work, 'joined.mp4');
       await ff(['-f', 'concat', '-safe', '0', '-i', concatList, '-c', 'copy', joined]);
-      const withAudio = path.join(work, 'with-audio.mp4');
-      if (trackFile) {
-        await ff(['-i', joined, '-i', trackFile, '-map', '0:v', '-map', '1:a',
-          '-shortest', '-af', 'afade=t=out:st=' + Math.max(0, cutPlan.at(-1).end - 1).toFixed(2) + ':d=1',
-          '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', withAudio]);
-      } else {
-        fs.copyFileSync(joined, withAudio);
-      }
-      const final = await applyGraphics({ inputPath: withAudio, workDir: work, piece, brief });
-      const buf = fs.readFileSync(final.path);
-      const key = storage.makeKey(slug, 'reel', 'mp4');
-      await storage.put(slug, key, buf, 'video/mp4');
+
+      // Graphics end-card on the SILENT cut → the download deliverable (no audio).
+      const final = await applyGraphics({ inputPath: joined, workDir: work, piece, brief });
+      const silentBuf = fs.readFileSync(final.path);
+      const reelKey = storage.makeKey(slug, 'reel', 'mp4');
+      await storage.put(slug, reelKey, silentBuf, 'video/mp4');
+      const audioInstruction = audioInstructionFor(picked, cutPlan);
       mediaAssets.record({
-        tenantSlug: slug, kind: 'reel', r2Key: key, contentType: 'video/mp4', sizeBytes: buf.length,
+        tenantSlug: slug, kind: 'reel', r2Key: reelKey, contentType: 'video/mp4', sizeBytes: silentBuf.length,
         refKind: 'piece', refId: piece.id,
-        meta: { edit_plan: cutPlan, track_id: picked?.track?.id || null, track_score: picked?.score ?? null, onsets_used: onsetsUsed, shots: shots.map((s) => ({ slot: s.slot, reused: s.reused })), flags: [...flags, ...final.flags], graphics: final.backend },
+        meta: { edit_plan: cutPlan, track_id: picked?.track?.id || null, track_score: picked?.score ?? null, onsets_used: onsetsUsed, shots: shots.map((s) => ({ slot: s.slot, reused: s.reused })), flags: [...flags, ...final.flags], graphics: final.backend, audio_mode: picked ? 'silent_delivery' : 'silent_no_track', audio_instruction: audioInstruction },
       });
+
+      // Preview WITH the trending track (gallery only, excluded from the ZIP) —
+      // mux the track under the graphics'd silent master.
+      if (trackFile) {
+        const previewPath = path.join(work, 'preview.mp4');
+        await ff(['-i', final.path, '-i', trackFile, '-map', '0:v', '-map', '1:a',
+          '-shortest', '-af', 'afade=t=out:st=' + Math.max(0, cutPlan.at(-1).end - 1).toFixed(2) + ':d=1',
+          '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', previewPath]);
+        const previewBuf = fs.readFileSync(previewPath);
+        const previewKey = storage.makeKey(slug, 'reel', 'mp4');
+        await storage.put(slug, previewKey, previewBuf, 'video/mp4');
+        mediaAssets.record({
+          tenantSlug: slug, kind: 'reel_preview', r2Key: previewKey, contentType: 'video/mp4', sizeBytes: previewBuf.length,
+          refKind: 'piece', refId: piece.id,
+          meta: { preview: true, track_id: picked.track.id, edit_plan: cutPlan },
+        });
+      }
     } finally {
       try { fs.rmSync(work, { recursive: true, force: true }); } catch { /* best-effort */ }
     }

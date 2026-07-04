@@ -3,13 +3,20 @@
 
 export const TIERS = ['standard', 'premium', 'ultra', 'overkill'];
 
-// { price USD, recurring, content counts } — Overkill is 100/140 per the BPMN
-// (v1 had drifted to 100/200; the sheet wins).
+// { price USD, recurring, content counts, available } — Overkill is 100/140 per the
+// BPMN (v1 had drifted to 100/200; the sheet wins).
+//
+// LAUNCH SCOPE (2026-07-04 operator decision): only STANDARD is available. The
+// recurring tiers all hinge on auto-deploy (Ayrshare), which is shelved as an
+// upcoming feature — so premium/ultra/overkill are marked available:false and the
+// funnel refuses them. Delivery for Standard is gallery + ZIP (silent masters +
+// per-piece upload instructions; reels are cut to trending audio the customer
+// attaches natively). Flip available:true here when auto-deploy ships.
 export const TIER_CONFIG = {
-  standard: { price: 800, recurring: false, reels: 30, posts: 30, deploy: false },
-  premium: { price: 1000, recurring: true, reels: 30, posts: 30, deploy: true },
-  ultra: { price: 2000, recurring: true, reels: 60, posts: 90, deploy: true },
-  overkill: { price: 4000, recurring: true, reels: 100, posts: 140, deploy: true },
+  standard: { price: 800, recurring: false, reels: 30, posts: 30, deploy: false, available: true },
+  premium: { price: 1000, recurring: true, reels: 30, posts: 30, deploy: true, available: false },
+  ultra: { price: 2000, recurring: true, reels: 60, posts: 90, deploy: true, available: false },
+  overkill: { price: 4000, recurring: true, reels: 100, posts: 140, deploy: true, available: false },
 };
 
 // Posts pillar split at script-gen time (v1-proven ratios).
@@ -43,4 +50,6 @@ export const TIER_DISPLAY = {
 };
 
 export const isValidTier = (t) => TIERS.includes(t);
+// A tier the funnel will actually sell right now (see LAUNCH SCOPE above).
+export const isAvailableTier = (t) => !!(TIER_CONFIG[t] && TIER_CONFIG[t].available);
 export const tierConfig = (t) => TIER_CONFIG[t] || null;

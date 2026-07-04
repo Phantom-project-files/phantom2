@@ -644,21 +644,23 @@ export const reports = {
 
 // ── audio_tracks ──────────────────────────────────────────────────────────────
 const _trackInsert = db.prepare(`
-  INSERT INTO audio_tracks (title, artist, source, license_note, r2_key, duration_sec, bpm, vibe_tags)
-  VALUES (@title, @artist, @source, @license_note, @r2_key, @duration_sec, @bpm, @vibe_tags)
+  INSERT INTO audio_tracks (title, artist, source, source_url, license_note, r2_key, duration_sec, bpm, vibe_tags)
+  VALUES (@title, @artist, @source, @source_url, @license_note, @r2_key, @duration_sec, @bpm, @vibe_tags)
 `);
 const _trackList = db.prepare('SELECT * FROM audio_tracks ORDER BY id DESC');
+const _trackById = db.prepare('SELECT * FROM audio_tracks WHERE id = ?');
 
 export const audioTracks = {
-  add({ title, artist = null, source = 'operator_upload', licenseNote = null,
+  add({ title, artist = null, source = 'operator_upload', sourceUrl = null, licenseNote = null,
         r2Key, durationSec = null, bpm = null, vibeTags = null }) {
     const r = _trackInsert.run({
-      title, artist, source, license_note: licenseNote, r2_key: r2Key,
+      title, artist, source, source_url: sourceUrl, license_note: licenseNote, r2_key: r2Key,
       duration_sec: durationSec, bpm, vibe_tags: vibeTags ? JSON.stringify(vibeTags) : null,
     });
     return r.lastInsertRowid;
   },
   list() { return _trackList.all(); },
+  byId(id) { return _trackById.get(id) || null; },
 };
 
 export default db;

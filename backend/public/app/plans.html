@@ -49,15 +49,19 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
   fetch('/api/tiers').then((r) => r.json()).then((d) => {
-    document.getElementById('grid').innerHTML = d.tiers.map((t) =>
-      '<div class="plan">'
-      + (t.badge ? '<span class="badge">' + esc(t.badge) + '</span>' : '')
+    document.getElementById('grid').innerHTML = d.tiers.map((t) => {
+      const soon = t.available === false;
+      return '<div class="plan"' + (soon ? ' style="opacity:.55"' : '') + '>'
+      + (soon ? '<span class="badge">Coming soon</span>' : (t.badge ? '<span class="badge">' + esc(t.badge) + '</span>' : ''))
       + '<h3>' + esc(t.name) + '</h3>'
       + '<div class="tagline">' + esc(t.tagline) + '</div>'
       + '<div class="price">' + esc(t.price_label) + '</div>'
       + '<ul>' + t.bullets.map((b) => '<li>' + esc(b) + '</li>').join('') + '</ul>'
-      + '<button class="btn btn-primary btn-block" data-plan="' + esc(t.key) + '" style="height:46px">Choose ' + esc(t.name) + '</button>'
-      + '</div>').join('');
+      + (soon
+        ? '<button class="btn btn-block" style="height:46px" disabled>Coming soon</button>'
+        : '<button class="btn btn-primary btn-block" data-plan="' + esc(t.key) + '" style="height:46px">Choose ' + esc(t.name) + '</button>')
+      + '</div>';
+    }).join('');
     document.querySelectorAll('[data-plan]').forEach((btn) => btn.addEventListener('click', () => choose(btn.dataset.plan, btn)));
   });
 

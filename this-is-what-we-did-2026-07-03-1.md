@@ -208,3 +208,33 @@ RESHAPED LANE B: drop "trending consumer audio"; Lane A bakes commercial-cleared
 (no instruction card needed — the draft IS the handoff); IG keeps silent+card fallback but
 labeled personal-use-only, default IG to Meta Sound Collection baked. Build shrinks vs first
 draft (preview-mux/instruction-card become IG-only). Full doc: docs/research/audio-and-deployment-2026-07-03.md
+
+## 2026-07-04 — Trending-audio delivery built (Standard-only), verified end-to-end
+Operator redirect: disable all plans except Standard (auto-deploy = upcoming feature); reels
+cut to trending audio, previewed WITH audio in Phantom, downloaded SILENT + upload instructions,
+ZIP organized in day-by-day folders. Built (no Lane B/deploy split — that's shelved with auto-deploy):
+- **tiers.js**: `available` flag — standard:true, premium/ultra/overkill:false + `isAvailableTier`.
+  Funnel `/plan` + `/checkout` reject unavailable ("coming soon"); plans.html renders them
+  disabled. deploySchedule untouched (still tier.deploy-gated) so smoke's deploy tests pass.
+- **008_trending_audio.sql**: `audio_tracks.source_url` (where to find the sound). db.audioTracks
+  add(sourceUrl)+byId. Audio upload route accepts `source`/`source_url` (was hardcoded operator_upload).
+- **assemble.js** (the core): every reel now emits TWO assets — kind='reel' = SILENT master
+  (deliverable; graphics end-card on the silent cut), kind='reel_preview' = silent + trending
+  track muxed (gallery only). Reel meta carries `audio_mode:'silent_delivery'` +
+  `audio_instruction{track_title,artist,source_url,start_sec,cut_times}`. Mock + real branches both.
+- **instructions.js** (new): buildReelInstruction / buildPostInstruction — the .txt shipped in the ZIP.
+- **gallery API + gallery.html**: reels PLAY the preview (asset = reel_preview, with sound, unmuted);
+  item carries audio_instruction; UI shows "Preview only — on upload add <track> natively…".
+- **download.zip**: `YYYY-MM-DD/` day folders, silent media (kind='reel') + generated
+  `<piece>_INSTRUCTIONS.txt` per piece; preview asset auto-excluded (zip only takes finals map).
+- **Verified**: smoke ALL PASS; `verify-edit-real.js` extended (ffprobe) — delivered reel SILENT,
+  preview HAS audio, audio_mode+instruction populated → ALL PASS. LIVE HTTP on live-prod-co-2bgw
+  intake V1udnOnmThd5 (re-assembled reel 151 against a seeded trending track): gallery plays
+  preview 358 + full instruction JSON; ZIP = 2026-07-04/{reel_151.mp4 (ffprobe: SILENT),
+  reel_151_INSTRUCTIONS.txt (names "Golden Hour (trending)" + IG audio URL + cut at 0:05 + caption),
+  post_154.png, post_154_INSTRUCTIONS.txt}; /api/tiers availability correct; premium plan → "coming soon".
+- Note: reel 151's assets were re-assembled to the new silent+preview structure (was the audio agent's
+  restored single silent reel) — now a live example of trending delivery. Trending track id 4 seeded.
+- Trending SOURCE for now = library tracks tagged source='trending_ig'/'trending_open' (operator-seeded);
+  live Instagram Audio API fetch (GET /ig_audio, returns trending by default per the research) is the
+  documented next adapter — needs Meta app creds. No auto-deploy, no Ayrshare draft path (shelved).

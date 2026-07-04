@@ -31,6 +31,13 @@ const ff = (args) => new Promise((res, rej) => {
   let e = ''; p.stderr.on('data', (d) => e += d);
   p.on('close', (c) => c === 0 ? res() : rej(new Error(e.slice(0, 300)))); p.on('error', rej);
 });
+// true if the file has at least one audio stream (via ffprobe alongside ffmpeg)
+const hasAudioStream = (file) => new Promise((res) => {
+  const probe = FFMPEG.replace(/ffmpeg(\.exe)?$/i, 'ffprobe$1');
+  const p = spawn(probe, ['-loglevel', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', file]);
+  let out = ''; p.stdout.on('data', (d) => out += d);
+  p.on('close', () => res(out.trim().length > 0)); p.on('error', () => res(null));
+});
 
 // seed: tenant / intake / campaign / phantom / one reel + one post piece
 const tenant = tenants.create({ businessName: 'Real Edit Co', website: 'https://real.example', suffix: 'r34l' });
@@ -76,6 +83,20 @@ check(`reel is real video (${reelAsset?.size_bytes} bytes, >100KB)`, (reelAsset?
 check('used both shots incl. the reused sibling', meta.shots?.length === 2 && meta.shots.some((s) => s.reused));
 check(`cut plan computed from real onsets (onsets_used=${meta.onsets_used})`, meta.onsets_used >= 1 && Array.isArray(meta.edit_plan));
 check(`graphics end-card applied (backend=${meta.graphics})`, meta.graphics === 'chrome_overlay');
+
+// ── Lane B: silent deliverable + audio preview + upload instruction ──
+const reelPath = path.join(storage.localRoot, reelAsset.r2_key);
+const previewAsset = mediaAssets.byRef('piece', reelPiece.id).find((a) => a.kind === 'reel_preview');
+const reelHasAudio = await hasAudioStream(reelPath);
+check('delivered reel is SILENT (no audio stream)', reelHasAudio === false);
+check(`preview asset exists (kind=reel_preview)`, !!previewAsset);
+if (previewAsset) {
+  const previewHasAudio = await hasAudioStream(path.join(storage.localRoot, previewAsset.r2_key));
+  check('preview has the trending audio baked (audio stream present)', previewHasAudio === true);
+}
+check(`reel meta.audio_mode = silent_delivery (${meta.audio_mode})`, meta.audio_mode === 'silent_delivery');
+const ai = meta.audio_instruction;
+check('audio_instruction names the track + timing', !!ai && ai.track_title === 'Burst' && ai.start_sec === 0 && Array.isArray(ai.cut_times));
 
 // REAL post composite (needs Chrome)
 try {

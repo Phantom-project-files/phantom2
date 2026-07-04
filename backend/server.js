@@ -30,6 +30,7 @@ import { mediaAssets, audioTracks } from './lib/db.js';
 import { registerEditJobs } from './lib/edit/assemble.js';
 import { registerComposeJobs } from './lib/edit/post-compose.js';
 import { ffmpegAvailable } from './lib/edit/audio.js';
+import { buildReelInstruction, buildPostInstruction } from './lib/edit/instructions.js';
 import { applyVerdict, phantomVerdict, REASON_TAGS, REGEN_CAP } from './lib/qc.js';
 import { coverageReport } from './lib/coverage.js';
 import { rollup as qcRollup, summarizeLearnings } from './lib/qc-learnings.js';
@@ -42,7 +43,7 @@ const archiver = createRequire(import.meta.url)('archiver'); // CJS pkg, no ESM 
 import { registerValuePropJobs } from './lib/valueprop.js';
 import { registerEmailJobs } from './lib/email.js';
 import { createCheckout, markIntakePaid, verifyStripeSignature, handleStripeEvent, paymentsMode } from './lib/payments.js';
-import { TIERS, TIER_CONFIG, TIER_DISPLAY, isValidTier } from './lib/tiers.js';
+import { TIERS, TIER_CONFIG, TIER_DISPLAY, isValidTier, isAvailableTier } from './lib/tiers.js';
 import { isEntitled } from './lib/entitlement.js';
 import { readUserFromCookie, requireUserOrAdmin } from './middleware/requireUser.js';
 import googleAuthRoutes from './auth/google-routes.js';
@@ -187,6 +188,7 @@ app.post('/api/intake/:id/plan', (req, res) => {
   if (!intake) return res.status(404).json({ success: false, error: 'not found' });
   const plan = String(req.body?.plan || '');
   if (!isValidTier(plan)) return res.status(400).json({ success: false, error: `plan must be one of ${TIERS.join('|')}` });
+  if (!isAvailableTier(plan)) return res.status(400).json({ success: false, error: `${plan} is coming soon — Standard is the only plan available right now` });
   intakes.patch(intake.id, { plan });
   events.record({ tenantSlug: intake.tenant_slug, name: 'plan.selected', props: { intakeId: intake.id, plan } });
   res.json({ success: true, plan });
@@ -199,6 +201,7 @@ app.post('/api/intake/:id/checkout', requireUserOrAdmin, async (req, res) => {
     if (!intake) return res.status(404).json({ success: false, error: 'not found' });
     const plan = String(req.body?.plan || intake.plan || '');
     if (!isValidTier(plan)) return res.status(400).json({ success: false, error: 'select a plan first' });
+    if (!isAvailableTier(plan)) return res.status(400).json({ success: false, error: `${plan} is coming soon — Standard is the only plan available right now` });
     if (isEntitled(intake)) return res.json({ success: true, already_paid: true, url: `/app/checkout-success.html?intake=${intake.id}` });
     if (plan !== intake.plan) intakes.patch(intake.id, { plan });
     const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
@@ -410,15 +413,25 @@ app.get('/api/intake/:id/gallery', (req, res) => {
   const intake = intakes.byId(req.params.id);
   if (!intake) return res.status(404).json({ success: false, error: 'not found' });
   if (!canViewIntake(req, intake)) return res.status(403).json({ success: false, error: 'forbidden' });
-  const finals = { reel: 'reel', post: 'post_final' };
   const items = pieces.byIntake(intake.id)
     .filter((p) => ['ready', 'approved'].includes(p.status))
     .map((p) => {
-      const asset = mediaAssets.byRef('piece', p.id).find((a) => a.kind === finals[p.kind]);
+      const assets = mediaAssets.byRef('piece', p.id);
       const brief = JSON.parse(p.brief);
-      return asset ? {
+      // Reels PLAY the audio preview in the gallery (with sound); the download is
+      // the silent master (see download.zip). Posts play their final image.
+      let play; let audioInstruction = null;
+      if (p.kind === 'reel') {
+        const silent = assets.find((a) => a.kind === 'reel');
+        play = assets.find((a) => a.kind === 'reel_preview') || silent;
+        if (silent) audioInstruction = JSON.parse(silent.meta || '{}').audio_instruction || null;
+      } else {
+        play = assets.find((a) => a.kind === 'post_final');
+      }
+      return play ? {
         piece_id: p.id, kind: p.kind, status: p.status, scheduled_date: p.scheduled_date,
-        caption: brief.caption || null, asset_id: asset.id, content_type: asset.content_type,
+        caption: brief.caption || null, asset_id: play.id, content_type: play.content_type,
+        audio_instruction: audioInstruction,
       } : null;
     }).filter(Boolean);
   res.json({ success: true, business_name: intake.business_name, items });
@@ -440,6 +453,8 @@ app.get('/api/intake/:id/download.zip', async (req, res) => {
   const intake = intakes.byId(req.params.id);
   if (!intake) return res.status(404).json({ success: false, error: 'not found' });
   if (!canViewIntake(req, intake)) return res.status(403).json({ success: false, error: 'forbidden' });
+  // 'reel' here is the SILENT master — the download never carries audio; the
+  // customer attaches the trending sound natively per the instruction file.
   const finals = { reel: 'reel', post: 'post_final' };
   const entries = [];
   for (const p of pieces.byIntake(intake.id).filter((x) => ['ready', 'approved'].includes(x.status))) {
@@ -456,14 +471,23 @@ app.get('/api/intake/:id/download.zip', async (req, res) => {
   const localRoot = storage.localRoot;
   for (const { piece, asset } of entries) {
     const ext = asset.content_type === 'video/mp4' ? 'mp4' : 'png';
-    const name = `${piece.scheduled_date}_${piece.kind}_${piece.id}.${ext}`;
+    const day = piece.scheduled_date || 'undated';        // day-by-day folders
+    const base = `${piece.kind}_${piece.id}`;
+    const mediaFileName = `${base}.${ext}`;
+    // media file → its day folder
     if (storage.backend === 'local') {
-      zip.file(path.join(localRoot, asset.r2_key), { name });
+      zip.file(path.join(localRoot, asset.r2_key), { name: `${day}/${mediaFileName}` });
     } else {
       const url = await storage.signedGet(asset.tenant_slug, asset.r2_key, 600);
       const r = await fetch(url);
-      zip.append(Buffer.from(await r.arrayBuffer()), { name });
+      zip.append(Buffer.from(await r.arrayBuffer()), { name: `${day}/${mediaFileName}` });
     }
+    // upload-instruction file alongside it (audio to add for reels, caption for posts)
+    const brief = JSON.parse(piece.brief);
+    const text = piece.kind === 'reel'
+      ? buildReelInstruction({ piece, brief, audioInstruction: JSON.parse(asset.meta || '{}').audio_instruction, mediaFileName })
+      : buildPostInstruction({ piece, brief, mediaFileName });
+    zip.append(Buffer.from(text, 'utf8'), { name: `${day}/${base}_INSTRUCTIONS.txt` });
   }
   events.record({ tenantSlug: intake.tenant_slug, name: 'gallery.zip_downloaded', props: { intakeId: intake.id, files: entries.length } });
   await zip.finalize();
@@ -547,14 +571,17 @@ app.post('/api/admin/audio', requireAdmin,
   express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '25mb' }),
   async (req, res) => {
     try {
-      const { title, artist = null, license = null, vibe = '' } = req.query;
+      // source: 'operator_upload' (default) | 'trending_open' | 'trending_ig' — trending
+      // tracks are cut-to + previewed + named in the upload instructions, never baked into
+      // the download. source_url is the "where to find this sound" link for the instruction.
+      const { title, artist = null, license = null, vibe = '', source = 'operator_upload', source_url = null } = req.query;
       if (!title) return res.status(400).json({ success: false, error: 'title query param required' });
       if (!req.body?.length) return res.status(400).json({ success: false, error: 'empty body — send the mp3 bytes' });
       const key = storage.makeKey('library', 'audio', 'mp3');
       await storage.put('library', key, req.body, 'audio/mpeg');
       const id = audioTracks.add({
-        title: String(title).slice(0, 120), artist, source: 'operator_upload',
-        licenseNote: license, r2Key: key,
+        title: String(title).slice(0, 120), artist, source: String(source).slice(0, 40),
+        sourceUrl: source_url, licenseNote: license, r2Key: key,
         vibeTags: String(vibe).split(',').map((s) => s.trim()).filter(Boolean),
       });
       logEvent({ event: 'audio.track_added', refId: id, message: `${title} (${req.body.length} bytes)` });
