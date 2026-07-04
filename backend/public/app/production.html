@@ -7,26 +7,120 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="assets/phantom-logo.svg">
 <link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/phantom.js"></script>
 <style>
-  .stage { max-width: 1100px; margin: 0 auto; padding: 28px 20px 80px; display: flex; flex-direction: column; gap: 16px; }
-  .panel h2 { font-size: 1rem; margin: 0 0 12px; }
-  .phantom-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
-  .phantom-card { border: 1px solid var(--hairline); border-radius: 12px; padding: 12px; font-size: .8rem; }
-  .phantom-card b { color: #fff; }
-  .phantom-card .dim { font-size: .72rem; }
-  .camp { border-bottom: 1px solid var(--hairline); padding: 10px 0; }
-  .camp .t { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-  .tag { font-family: var(--mono); font-size: .66rem; padding: 2px 8px; border: 1px solid var(--hairline); border-radius: 999px; color: var(--text-3); }
-  .tag.product { color: #36e2c4; border-color: rgba(54,226,196,.4); }
-  .tag.fifa, .tag.world_event, .tag.weather, .tag.business_event { color: #ffb454; border-color: rgba(255,180,84,.4); }
-  .cal { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; }
-  .day { border: 1px solid var(--hairline); border-radius: 8px; padding: 6px 8px; font-size: .68rem; font-family: var(--mono); color: var(--text-2); }
-  .day b { color: #fff; display: block; font-size: .7rem; }
-  table { width: 100%; border-collapse: collapse; font-size: .8rem; }
-  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--hairline); }
-  th { color: var(--text-3); font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; }
-  details.brief { font-size: .74rem; color: var(--text-2); }
-  details.brief pre { white-space: pre-wrap; background: rgba(255,255,255,.03); border-radius: 8px; padding: 8px; max-height: 220px; overflow: auto; }
+  body { background: var(--bg); color: var(--text); min-height: 100dvh; }
+  body::before {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(900px 620px at 50% -8%, rgba(124,92,255,.22), transparent 60%),
+      radial-gradient(720px 520px at 90% 110%, rgba(54,226,196,.07), transparent 65%),
+      radial-gradient(560px 360px at 8% 92%, rgba(124,92,255,.08), transparent 65%);
+  }
+
+  .stage { position:relative; z-index:1; max-width:1180px; margin:0 auto; padding:32px 20px 90px; display:flex; flex-direction:column; gap:22px; }
+
+  /* ---- hero ---- */
+  .hero-card { position:relative; overflow:hidden; }
+  .hero-card .eyebrow { display:inline-flex; align-items:center; gap:6px; }
+  .hero-card h2#head { font-family:var(--display); font-weight:600; letter-spacing:-.02em; font-size:clamp(1.5rem,3.4vw,2.3rem); margin:8px 0 0; color:#fff; }
+  .chip-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .chip { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; border:1px solid var(--hairline-2); background:var(--surface-2); font-size:.72rem; color:var(--text-2); }
+  .chip.ok { color:#9af2e2; border-color:rgba(54,226,196,.35); background:rgba(54,226,196,.1); }
+  .chip.warn { color:#ffd99a; border-color:rgba(245,181,71,.35); background:rgba(245,181,71,.12); }
+  .hero-actions { display:flex; align-items:center; gap:12px; margin-top:20px; flex-wrap:wrap; }
+  .gen-msg { margin-top:10px; font-size:.8rem; min-height:1.1em; }
+
+  .panel-head { display:flex; align-items:baseline; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .panel-head h2 { font-size:1.05rem; margin:0; }
+  .panel-head .hint { font-size:.75rem; font-weight:400; color:var(--text-3); }
+
+  /* ---- phantoms ---- */
+  .phantom-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:14px; }
+  .phantom-card { border:1px solid var(--hairline); border-radius:var(--r-md); padding:12px; background:var(--surface); transition:transform .15s var(--ease), border-color .15s var(--ease); }
+  .phantom-card:hover { transform:translateY(-3px); border-color:var(--hairline-2); }
+  .phantom-card .ph-photo { width:100%; aspect-ratio:1; object-fit:cover; border-radius:var(--r); background:var(--surface-2); margin-bottom:10px; }
+  .phantom-card .ph-photo.ph-empty { display:grid; place-items:center; }
+  .phantom-card .ph-name { color:#fff; font-weight:600; font-family:var(--display); font-size:.95rem; }
+  .phantom-card .ph-meta { display:flex; gap:6px; align-items:center; margin:6px 0 8px; flex-wrap:wrap; }
+  .phantom-card .ph-line { font-size:.75rem; color:var(--text-2); margin-top:3px; line-height:1.4; }
+  .phantom-card .ph-prompt { font-family:var(--mono); font-size:.65rem; color:var(--text-3); margin-top:7px; opacity:.85; }
+
+  /* ---- status chips (pieces / phantoms / deploy / connection) ---- */
+  .status-chip { display:inline-flex; align-items:center; gap:5px; font-family:var(--mono); font-size:.64rem; letter-spacing:.03em; text-transform:uppercase; padding:3px 9px; border-radius:999px; border:1px solid var(--hairline-2); color:var(--text-2); white-space:nowrap; background:var(--surface-2); }
+  .status-chip.st-briefed, .status-chip.st-cast, .status-chip.st-rendering, .status-chip.st-qc_pending, .status-chip.st-scheduled, .status-chip.st-created { color:var(--accent-2); border-color:rgba(124,92,255,.35); background:rgba(124,92,255,.1); }
+  .status-chip.st-ready { color:#ffd99a; border-color:rgba(245,181,71,.35); background:rgba(245,181,71,.1); }
+  .status-chip.st-approved, .status-chip.st-published, .status-chip.st-linked { color:#9af2e2; border-color:rgba(54,226,196,.4); background:rgba(54,226,196,.12); }
+  .status-chip.st-rejected, .status-chip.st-failed { color:#ffb3bd; border-color:rgba(255,92,114,.35); background:rgba(255,92,114,.1); }
+  .status-chip.st-skipped { color:var(--text-3); }
+
+  /* ---- campaigns ---- */
+  .camp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
+  .camp-card { border:1px solid var(--hairline); border-radius:var(--r-md); padding:14px; background:var(--surface); }
+  .camp-card .camp-title { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .camp-card .camp-title b { color:#fff; font-family:var(--display); font-weight:600; font-size:.94rem; }
+  .camp-card .camp-count { margin-left:auto; }
+  .camp-card .camp-concept { font-size:.78rem; color:var(--text-2); margin-top:8px; line-height:1.45; }
+  .camp-card .camp-visual { font-size:.7rem; color:var(--text-3); margin-top:6px; }
+  .tag { font-family:var(--mono); font-size:.62rem; letter-spacing:.03em; padding:3px 9px; border:1px solid var(--hairline-2); border-radius:999px; color:var(--text-3); text-transform:uppercase; }
+  .tag.product { color:#9af2e2; border-color:rgba(54,226,196,.4); background:rgba(54,226,196,.08); }
+  .tag.fifa, .tag.world_event, .tag.weather, .tag.business_event { color:#ffd99a; border-color:rgba(245,181,71,.4); background:rgba(245,181,71,.08); }
+
+  /* ---- coverage + calendar side by side ---- */
+  .split-row { display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; }
+  @media (max-width:860px) { .split-row { grid-template-columns:1fr; } }
+
+  .cov-row { display:flex; justify-content:space-between; gap:10px; font-size:.82rem; color:var(--text-2); padding:7px 0; border-bottom:1px solid var(--hairline); }
+  .cov-row:last-of-type { border-bottom:0; }
+  .cov-section-label { font-family:var(--mono); font-size:.66rem; text-transform:uppercase; letter-spacing:.1em; color:var(--text-3); margin:14px 0 8px; }
+  .pillar-row + .pillar-row { margin-top:10px; }
+  .pillar-row .pillar-label { display:flex; justify-content:space-between; font-size:.74rem; color:var(--text-2); margin-bottom:5px; }
+  .progress > span.off { background:linear-gradient(90deg, var(--danger), #ff8fa3); }
+
+  /* ---- calendar month grid ---- */
+  .cal-dow { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:6px; }
+  .cal-dow span { text-align:center; font-family:var(--mono); font-size:.6rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.05em; }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .cal-cell { min-height:54px; border:1px solid var(--hairline); border-radius:8px; padding:5px; display:flex; flex-direction:column; gap:4px; }
+  .cal-cell.out { opacity:.25; }
+  .cal-cell.has-content { border-color:rgba(124,92,255,.4); background:rgba(124,92,255,.07); }
+  .cal-daynum { font-family:var(--mono); font-size:.6rem; color:var(--text-3); }
+  .cal-chips { display:flex; gap:3px; flex-wrap:wrap; }
+  .cal-chip { font-family:var(--mono); font-size:.56rem; padding:1px 5px; border-radius:999px; white-space:nowrap; }
+  .cal-chip.reel { background:rgba(124,92,255,.25); color:#e3dbff; }
+  .cal-chip.post { background:rgba(54,226,196,.22); color:#9af2e2; }
+
+  /* ---- deploy ---- */
+  .deploy-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .plat-chip { display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:.64rem; text-transform:uppercase; color:var(--text-2); }
+  .plat-chip i { width:13px; height:13px; color:var(--accent-2); }
+  .deploy-list { margin-top:14px; display:flex; flex-direction:column; gap:6px; }
+  .deploy-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; font-size:.78rem; color:var(--text-2); padding:8px 12px; border:1px solid var(--hairline); border-radius:10px; background:var(--surface-2); }
+  .report-box { margin-top:16px; }
+  .report-box .kpi-row { display:flex; gap:32px; flex-wrap:wrap; }
+  .report-box .kpi { font-size:1.7rem; }
+
+  /* ---- pieces table ---- */
+  table.pieces-table { width:100%; border-collapse:collapse; font-size:.8rem; }
+  table.pieces-table th, table.pieces-table td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--hairline); vertical-align:middle; }
+  table.pieces-table th { color:var(--text-3); font-size:.64rem; text-transform:uppercase; letter-spacing:.08em; font-weight:600; white-space:nowrap; }
+  table.pieces-table tbody tr:hover td { background:rgba(255,255,255,.02); }
+  .kind-ico { display:inline-flex; align-items:center; gap:6px; color:var(--text-2); text-transform:capitalize; }
+  .kind-ico i { width:14px; height:14px; color:var(--accent-2); }
+  .qc-actions { display:flex; gap:6px; }
+  .qc-btn { width:26px; height:26px; border-radius:50%; border:1px solid var(--hairline-2); background:var(--surface-2); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-2); transition:all .15s var(--ease); }
+  .qc-btn i { width:14px; height:14px; }
+  .qc-btn.qc-approve:hover { border-color:rgba(54,226,196,.5); color:#9af2e2; background:rgba(54,226,196,.12); }
+  .qc-btn.qc-reject:hover { border-color:rgba(255,92,114,.5); color:#ffb3bd; background:rgba(255,92,114,.12); }
+  .regen-chip { font-family:var(--mono); font-size:.66rem; color:var(--text-3); }
+  .asset-link { font-family:var(--mono); font-size:.66rem; color:var(--accent-2); padding:2px 7px; border:1px solid var(--hairline-2); border-radius:6px; margin:0 3px 3px 0; display:inline-block; }
+  details.brief summary { cursor:pointer; color:var(--text-3); font-size:.72rem; }
+  details.brief pre { white-space:pre-wrap; background:rgba(255,255,255,.03); border-radius:8px; padding:8px; max-height:220px; overflow:auto; font-size:.66rem; margin-top:6px; }
+
+  @media (max-width:640px) {
+    .stage { padding:22px 14px 70px; gap:16px; }
+    table.pieces-table { font-size:.72rem; }
+  }
 </style>
 </head>
 <body>
@@ -34,43 +128,104 @@
 <header class="nav">
   <div class="wrap nav-inner">
     <a class="brand" href="admin.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom <small>production</small></a>
-    <a class="btn" href="admin.html" style="height:36px">← Console</a>
+    <span class="nav-spacer"></span>
+    <a class="btn btn-quiet btn-sm" href="admin.html"><i data-icon="arrow-left" data-size="14"></i> Console</a>
   </div>
 </header>
 
 <main class="stage">
-  <div class="card card-pad panel">
+
+  <section class="card card-pad hero-card">
+    <span class="eyebrow"><i data-icon="sparkles" data-size="12"></i> Production</span>
     <h2 id="head">loading…</h2>
-    <div id="sub" class="dim" style="font-size:.8rem"></div>
-    <div style="display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap">
-      <button class="btn btn-primary" id="genBtn" style="height:40px">Generate media</button>
-      <span id="estimate" class="dim mono" style="font-size:.74rem">estimating…</span>
+    <div id="sub" class="chip-row"></div>
+    <div class="hero-actions">
+      <button class="btn btn-primary" id="genBtn" style="height:44px">Generate media</button>
+      <span id="estimate" class="chip mono">estimating…</span>
     </div>
-    <div id="genMsg" class="dim" style="font-size:.78rem; margin-top:6px"></div>
-  </div>
-  <div class="card card-pad panel"><h2>Phantoms <span class="dim" style="font-weight:400; font-size:.75rem">the 6 UGC creators</span></h2><div class="phantom-grid" id="phantoms"></div></div>
-  <div class="card card-pad panel"><h2>Campaigns</h2><div id="campaigns"></div></div>
-  <div class="card card-pad panel"><h2>Coverage <span id="covBadge"></span></h2><div id="coverage" class="dim" style="font-size:.8rem">loading…</div></div>
-  <div class="card card-pad panel"><h2>Deployment calendar</h2><div class="cal" id="calendar"></div></div>
-  <div class="card card-pad panel">
-    <h2>Deploy <span id="connBadge"></span></h2>
-    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
-      <button class="btn" id="connectBtn" style="height:36px">Connect socials</button>
-      <button class="btn btn-primary" id="deployBtn" style="height:36px">Deploy approved → calendar</button>
-      <button class="btn" id="monthEndBtn" style="height:36px">Run month-end report</button>
-      <span id="deployMsg" class="dim" style="font-size:.78rem"></span>
-    </div>
-    <div id="deployList" class="dim" style="font-size:.78rem; margin-top:10px"></div>
-    <div id="reportBox" class="dim" style="font-size:.8rem; margin-top:10px"></div>
+    <div id="genMsg" class="gen-msg dim"></div>
+  </section>
+
+  <section class="card card-pad panel">
+    <div class="panel-head"><h2>Phantoms</h2><span class="hint">the 6 UGC creators</span></div>
+    <div class="phantom-grid" id="phantoms">loading…</div>
+  </section>
+
+  <section class="card card-pad panel">
+    <div class="panel-head"><h2>Campaigns</h2></div>
+    <div class="camp-grid" id="campaigns">loading…</div>
+  </section>
+
+  <div class="split-row">
+    <section class="card card-pad panel">
+      <div class="panel-head"><h2>Coverage</h2><span id="covBadge"></span></div>
+      <div id="coverage" class="dim" style="font-size:.82rem">loading…</div>
+    </section>
+    <section class="card card-pad panel">
+      <div class="panel-head"><h2>Deployment calendar</h2></div>
+      <div id="calendar">loading…</div>
+    </section>
   </div>
 
-  <div class="card card-pad panel"><h2>Pieces</h2><div style="overflow-x:auto" id="pieces"></div></div>
+  <section class="card card-pad panel">
+    <div class="panel-head"><h2>Deploy</h2><span id="connBadge"></span></div>
+    <div class="deploy-actions">
+      <button class="btn" id="connectBtn"><i data-icon="globe" data-size="15"></i> Connect socials</button>
+      <button class="btn btn-primary" id="deployBtn">Deploy approved <i data-icon="arrow-right" data-size="14"></i> calendar</button>
+      <button class="btn" id="monthEndBtn"><i data-icon="calendar" data-size="15"></i> Run month-end report</button>
+      <span id="deployMsg" class="dim mono" style="font-size:.78rem"></span>
+    </div>
+    <div id="deployList" class="deploy-list"></div>
+    <div id="reportBox" class="report-box dim"></div>
+  </section>
+
+  <section class="card card-pad panel">
+    <div class="panel-head"><h2>Pieces</h2></div>
+    <div style="overflow-x:auto" id="pieces">loading…</div>
+  </section>
+
 </main>
 
 <script>
 const intakeId = new URLSearchParams(location.search).get('intake');
 if (!intakeId) location.replace('admin.html');
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const PLATFORM_ICON = { instagram: 'instagram', tiktok: 'tiktok', youtube: 'youtube' };
+function platformChips(list) {
+  return (list || []).map((p) => '<span class="plat-chip">' + (PLATFORM_ICON[p] ? '<i data-icon="' + PLATFORM_ICON[p] + '" data-size="13"></i>' : '') + esc(p) + '</span>').join('');
+}
+
+// Purely client-side month-grid built from the SAME d.calendar array the server
+// already returns ({date, reels, posts} per day-with-content) — pads to full
+// weeks so days without pieces still render as empty cells.
+function renderCalendarGrid(list) {
+  if (!list.length) return '<span class="dim">no schedule yet</span>';
+  const byDate = Object.fromEntries(list.map((c) => [c.date, c]));
+  const sortedDates = list.map((c) => c.date).sort();
+  const first = new Date(sortedDates[0] + 'T00:00:00');
+  const last = new Date(sortedDates[sortedDates.length - 1] + 'T00:00:00');
+  const start = new Date(first); start.setDate(start.getDate() - start.getDay());
+  const end = new Date(last); end.setDate(end.getDate() + (6 - end.getDay()));
+  let html = '<div class="cal-dow">' + ['Su','Mo','Tu','We','Th','Fr','Sa'].map((d) => '<span>' + d + '</span>').join('') + '</div><div class="cal-grid">';
+  const cur = new Date(start);
+  while (cur <= end) {
+    const iso = cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
+    const c = byDate[iso];
+    const inRange = cur >= first && cur <= last;
+    const label = (cur.getDate() === 1 ? MON[cur.getMonth()] + ' ' : '') + cur.getDate();
+    html += '<div class="cal-cell' + (c ? ' has-content' : '') + (inRange ? '' : ' out') + '">'
+      + '<span class="cal-daynum">' + label + '</span>'
+      + (c ? '<span class="cal-chips">'
+          + (c.reels ? '<span class="cal-chip reel">' + c.reels + 'r</span>' : '')
+          + (c.posts ? '<span class="cal-chip post">' + c.posts + 'p</span>' : '')
+          + '</span>' : '')
+      + '</div>';
+    cur.setDate(cur.getDate() + 1);
+  }
+  return html + '</div>';
+}
 
 async function loadEstimate() {
   const r = await fetch('/api/admin/intake/' + encodeURIComponent(intakeId) + '/media-estimate', { credentials: 'same-origin' });
@@ -106,46 +261,57 @@ async function render() {
   if (!d.success) { document.getElementById('head').textContent = d.error; return; }
 
   const counts = Object.fromEntries(d.counts.map((c) => [c.kind, c.n]));
-  document.getElementById('head').textContent = d.intake.business_name + ' — production';
-  document.getElementById('sub').textContent = d.intake.tenant_slug + ' · ' + (d.intake.plan || 'no plan') + ' · ' + d.intake.payment_status
-    + ' · ' + (counts.reel || 0) + ' reels / ' + (counts.post || 0) + ' posts across ' + d.campaigns.length + ' campaigns';
+  const payOk = ['paid', 'admin_override'].includes(d.intake.payment_status);
+  document.getElementById('head').textContent = d.intake.business_name;
+  document.getElementById('sub').innerHTML =
+      '<span class="chip mono">' + esc(d.intake.tenant_slug) + '</span>'
+    + '<span class="chip mono">' + esc(d.intake.plan || 'no plan') + '</span>'
+    + '<span class="chip mono ' + (payOk ? 'ok' : 'warn') + '">' + esc(d.intake.payment_status) + '</span>'
+    + '<span class="chip mono">' + (counts.reel || 0) + ' reels · ' + (counts.post || 0) + ' posts</span>'
+    + '<span class="chip mono">' + d.campaigns.length + ' campaigns</span>';
 
-  document.getElementById('phantoms').innerHTML = d.phantoms.map((p) =>
-    '<div class="phantom-card">'
-    + (p.asset_id ? '<img src="/api/admin/media/' + p.asset_id + '/url" alt="" style="width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; margin-bottom:6px; background:rgba(255,255,255,.04)">' : '')
-    + '<b>' + esc(p.name) + '</b> <span class="dim">' + (p.age || '') + '</span>'
-    + ' <span class="tag" style="font-size:.6rem">' + esc(p.status) + '</span>'
-    + '<div class="dim">' + esc(p.persona || '') + '</div>'
-    + '<div class="dim" style="margin-top:4px">' + esc(p.vibe || '') + '</div>'
-    + '<div class="dim" style="margin-top:4px; opacity:.7">' + esc((p.appearance_prompt || '').slice(0, 90)) + '…</div></div>').join('')
-    || '<span class="dim">none yet</span>';
+  document.getElementById('phantoms').innerHTML = d.phantoms.map((p) => {
+    const img = p.asset_id
+      ? '<img class="ph-photo" src="/api/admin/media/' + p.asset_id + '/url" alt="">'
+      : '<div class="ph-photo ph-empty"><i data-icon="user" data-size="26"></i></div>';
+    return '<div class="phantom-card">' + img
+      + '<div class="ph-name">' + esc(p.name) + '</div>'
+      + '<div class="ph-meta"><span class="dim mono" style="font-size:.68rem">' + esc(p.age || '') + '</span>'
+      + '<span class="status-chip st-' + esc(p.status) + '">' + esc(p.status) + '</span></div>'
+      + '<div class="ph-line">' + esc(p.persona || '') + '</div>'
+      + '<div class="ph-line" style="opacity:.85">' + esc(p.vibe || '') + '</div>'
+      + '<div class="ph-prompt">' + esc((p.appearance_prompt || '').slice(0, 90)) + '…</div></div>';
+  }).join('') || '<span class="dim">none yet</span>';
 
   document.getElementById('campaigns').innerHTML = d.campaigns.map((c) => {
     const n = d.pieces.filter((p) => p.campaign_id === c.id);
-    return '<div class="camp"><div class="t"><b style="color:#fff">' + esc(c.title) + '</b>'
+    return '<div class="camp-card"><div class="camp-title"><b>' + esc(c.title) + '</b>'
       + '<span class="tag ' + esc(c.type) + '">' + esc(c.type) + '</span>'
       + (c.moment ? '<span class="tag">' + esc(c.moment) + '</span>' : '')
-      + '<span class="dim" style="font-size:.72rem">' + n.filter((p) => p.kind === 'reel').length + 'r / ' + n.filter((p) => p.kind === 'post').length + 'p</span></div>'
-      + '<div class="dim" style="font-size:.78rem; margin-top:3px">' + esc(c.concept) + '</div>'
-      + '<div class="dim" style="font-size:.72rem; margin-top:2px; opacity:.75">visual: ' + esc(c.visual_design) + '</div></div>';
+      + '<span class="dim mono camp-count" style="font-size:.7rem">' + n.filter((p) => p.kind === 'reel').length + 'r / ' + n.filter((p) => p.kind === 'post').length + 'p</span></div>'
+      + '<div class="camp-concept">' + esc(c.concept) + '</div>'
+      + '<div class="camp-visual">visual — ' + esc(c.visual_design) + '</div></div>';
   }).join('') || '<span class="dim">none yet</span>';
 
-  document.getElementById('calendar').innerHTML = d.calendar.map((c) =>
-    '<div class="day"><b>' + esc(c.date.slice(5)) + '</b>' + c.reels + ' reel · ' + c.posts + ' post</div>').join('')
-    || '<span class="dim">no schedule yet</span>';
+  document.getElementById('calendar').innerHTML = renderCalendarGrid(d.calendar);
 
   const phMap = Object.fromEntries(d.phantoms.map((p) => [p.id, p.name]));
   const cMap = Object.fromEntries(d.campaigns.map((c) => [c.id, c.title]));
-  document.getElementById('pieces').innerHTML = '<table><thead><tr><th>date</th><th>kind</th><th>pillar</th><th>campaign</th><th>phantom</th><th>status</th><th>media</th><th>QC</th><th>brief</th></tr></thead><tbody>'
+  document.getElementById('pieces').innerHTML = '<table class="pieces-table"><thead><tr><th>Date</th><th>Kind</th><th>Pillar</th><th>Campaign</th><th>Phantom</th><th>Status</th><th>Media</th><th>QC</th><th>Brief</th></tr></thead><tbody>'
     + d.pieces.map((p) => {
       const qc = p.status === 'ready'
-        ? '<button class="btn" style="height:24px; font-size:.66rem; padding:0 8px" onclick="qcPiece(' + p.id + ',\'approve\')">✓</button> '
-          + '<button class="btn" style="height:24px; font-size:.66rem; padding:0 8px" onclick="qcPiece(' + p.id + ',\'reject\')">✗</button>'
-        : (p.regen_count ? '<span class="dim" style="font-size:.68rem">regen ' + p.regen_count + '/3</span>' : '—');
-      return '<tr><td>' + esc(p.scheduled_date) + '</td><td>' + p.kind + '</td><td>' + esc(p.pillar || '—')
-      + '</td><td>' + esc(cMap[p.campaign_id] || p.campaign_id) + '</td><td>' + esc(phMap[p.phantom_id] || '—')
-      + '</td><td>' + esc(p.status) + '</td><td>'
-      + (p.assets || []).map((a) => '<a href="/api/admin/media/' + a.id + '/url" target="_blank">' + a.kind + (a.slot != null ? a.slot : '') + '</a>').join(' · ')
+        ? '<div class="qc-actions">'
+          + '<button class="qc-btn qc-approve" onclick="qcPiece(' + p.id + ',\'approve\')" title="Approve" aria-label="Approve"><i data-icon="check" data-size="14"></i></button>'
+          + '<button class="qc-btn qc-reject" onclick="qcPiece(' + p.id + ',\'reject\')" title="Reject" aria-label="Reject"><i data-icon="x" data-size="14"></i></button>'
+          + '</div>'
+        : (p.regen_count ? '<span class="regen-chip">regen ' + p.regen_count + '/3</span>' : '<span class="dim">—</span>');
+      return '<tr><td class="mono dim">' + esc(p.scheduled_date) + '</td>'
+      + '<td><span class="kind-ico"><i data-icon="' + (p.kind === 'reel' ? 'film' : 'image') + '" data-size="14"></i>' + esc(p.kind) + '</span></td>'
+      + '<td>' + esc(p.pillar || '—') + '</td>'
+      + '<td>' + esc(cMap[p.campaign_id] || p.campaign_id) + '</td>'
+      + '<td>' + esc(phMap[p.phantom_id] || '—') + '</td>'
+      + '<td><span class="status-chip st-' + esc(p.status) + '">' + esc(p.status) + '</span></td>'
+      + '<td>' + (p.assets || []).map((a) => '<a class="asset-link" href="/api/admin/media/' + a.id + '/url" target="_blank">' + esc(a.kind) + (a.slot != null ? a.slot : '') + '</a>').join('')
       + '</td><td>' + qc + '</td><td><details class="brief"><summary>view</summary><pre>'
       + esc(JSON.stringify(p.brief, null, 1)) + '</pre></details></td></tr>';
     }).join('')
@@ -155,35 +321,50 @@ async function render() {
   if (cov.success) {
     const rep = cov.report;
     document.getElementById('covBadge').innerHTML = rep.green
-      ? '<span class="tag" style="color:#36e2c4; border-color:rgba(54,226,196,.5)">GREEN</span>'
-      : '<span class="tag" style="color:#ffb454; border-color:rgba(255,180,84,.5)">ATTENTION</span>';
+      ? '<span class="badge badge-teal"><span class="dot"></span>GREEN</span>'
+      : '<span class="badge badge-warn"><span class="dot"></span>ATTENTION</span>';
     document.getElementById('coverage').innerHTML =
-      'counts: ' + rep.counts.reels + 'r/' + rep.counts.posts + 'p'
-      + (rep.counts.plan_target ? ' (plan ' + rep.counts.plan_target.reels + '/' + rep.counts.plan_target.posts + (rep.counts.custom_build ? ' — custom build' : '') + ')' : '')
-      + ' · phantoms used ' + rep.phantoms.used + '/' + rep.phantoms.cast
-      + ' · QC reviewed ' + rep.qc.reviewed + ', pending ' + rep.qc.pending_review
-      + '<br>pillars: ' + rep.pillars.map((p) => p.pillar + ' ' + p.actual_pct + '%/' + p.target_pct + '%' + (p.ok ? '' : ' ⚠')).join(' · ')
-      + '<br>campaign types: ' + Object.entries(rep.campaign_types).map(([t, n]) => t + '×' + n).join(' · ');
+        '<div class="cov-row"><span>Counts</span><span class="mono">' + rep.counts.reels + 'r / ' + rep.counts.posts + 'p'
+          + (rep.counts.plan_target ? ' <span class="dim">(plan ' + rep.counts.plan_target.reels + '/' + rep.counts.plan_target.posts + (rep.counts.custom_build ? ' — custom build' : '') + ')</span>' : '') + '</span></div>'
+      + '<div class="cov-row"><span>Phantoms used</span><span class="mono">' + rep.phantoms.used + ' / ' + rep.phantoms.cast + '</span></div>'
+      + '<div class="cov-row"><span>QC</span><span class="mono">' + rep.qc.reviewed + ' reviewed · ' + rep.qc.pending_review + ' pending</span></div>'
+      + '<div class="cov-section-label">Pillars</div>'
+      + rep.pillars.map((p) => '<div class="pillar-row"><div class="pillar-label"><span>' + esc(p.pillar) + '</span><span class="mono">' + p.actual_pct + '% <span class="dim">/ ' + p.target_pct + '%</span></span></div>'
+          + '<div class="progress"><span class="' + (p.ok ? '' : 'off') + '" style="width:' + Math.max(0, Math.min(100, p.actual_pct)) + '%"></span></div></div>').join('')
+      + '<div class="cov-section-label">Campaign types</div>'
+      + '<div class="tag-row">' + Object.entries(rep.campaign_types).map(([t, n]) => '<span class="tag">' + esc(t) + ' × ' + n + '</span>').join('') + '</div>';
   }
+  Phantom.mountIcons();
 }
 
 async function loadDeploy() {
   const d = await fetch('/api/admin/intake/' + encodeURIComponent(intakeId) + '/deployments', { credentials: 'same-origin' }).then((r) => r.json());
   if (!d.success) return;
   document.getElementById('connBadge').innerHTML = d.connection
-    ? '<span class="tag" style="color:#36e2c4">' + esc(d.connection.status) + (d.connection.platforms ? ' · ' + JSON.parse(d.connection.platforms).join(', ') : '') + '</span>'
-    : '<span class="tag">not connected</span>';
+    ? '<span class="badge badge-teal"><span class="dot"></span>' + esc(d.connection.status) + '</span>' + platformChips(d.connection.platforms ? JSON.parse(d.connection.platforms) : [])
+    : '<span class="badge">not connected</span>';
   document.getElementById('deployList').innerHTML = d.deployments.length
-    ? d.deployments.slice(0, 12).map((x) => 'piece ' + x.piece_id + ' → ' + x.platforms.join('+') + ' · ' + esc(x.status) + (x.scheduled_at ? ' @ ' + esc(String(x.scheduled_at).slice(0, 10)) : '')).join('<br>')
-    : 'no deployments yet';
-  const rep = await fetch('/api/admin/tenant/' + encodeURIComponent(d.connection ? d.connection.tenant_slug : '') + '/report/latest', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => null);
+    ? d.deployments.slice(0, 12).map((x) => '<div class="deploy-row"><span class="mono">piece ' + x.piece_id + '</span>'
+        + platformChips(x.platforms)
+        + '<span class="status-chip st-' + esc(x.status) + '">' + esc(x.status) + '</span>'
+        + (x.scheduled_at ? '<span class="dim mono">@ ' + esc(String(x.scheduled_at).slice(0, 10)) + '</span>' : '') + '</div>').join('')
+    : '<span class="dim">no deployments yet</span>';
+  // No connection → no tenant slug → skip the report probe (avoids a /tenant//… 404).
+  const rep = d.connection
+    ? await fetch('/api/admin/tenant/' + encodeURIComponent(d.connection.tenant_slug) + '/report/latest', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => null)
+    : null;
   if (rep && rep.report) {
     const s = rep.report.summary;
-    document.getElementById('reportBox').innerHTML = '<strong style="color:#fff">' + esc(rep.report.period) + ' report</strong> — '
-      + s.deployed_pieces + ' pieces · engagement ' + (s.totals ? s.totals.engagement : 0)
-      + (s.narrative ? '<br>' + esc(s.narrative) : '')
-      + (s.upsell ? '<br><span style="color:#ffb454">⤴ upgrade suggested → ' + esc(s.upsell.to) + '</span>' : '');
+    document.getElementById('reportBox').innerHTML =
+        '<div class="panel-head" style="margin-bottom:12px"><h2 style="font-size:.92rem; color:#fff">' + esc(rep.report.period) + ' report</h2></div>'
+      + '<div class="kpi-row">'
+      + '<div class="kpi">' + s.deployed_pieces + '<small>pieces deployed</small></div>'
+      + '<div class="kpi">' + (s.totals ? s.totals.engagement : 0) + '<small>engagement</small></div>'
+      + '</div>'
+      + (s.narrative ? '<p style="margin-top:12px; font-size:.82rem; line-height:1.55; color:var(--text-2)">' + esc(s.narrative) + '</p>' : '')
+      + (s.upsell ? '<div class="chip warn" style="margin-top:10px; width:fit-content">upgrade suggested <i data-icon="arrow-right" data-size="13"></i> ' + esc(s.upsell.to) + '</div>' : '');
   }
+  Phantom.mountIcons();
 }
 
 document.getElementById('connectBtn').addEventListener('click', async () => {

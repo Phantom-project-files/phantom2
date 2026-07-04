@@ -7,40 +7,113 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="assets/phantom-logo.svg">
 <link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/phantom.js"></script>
 <script src="assets/track.js"></script>
+
+<style>
+  body { background:var(--bg); overflow-x:hidden; }
+  body::before {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(900px 620px at 50% -8%, rgba(124,92,255,.20), transparent 60%),
+      radial-gradient(720px 520px at 90% 110%, rgba(54,226,196,.07), transparent 65%),
+      radial-gradient(560px 360px at 8% 92%, rgba(124,92,255,.08), transparent 65%);
+  }
+
+  /* ---- min nav (shared pattern, ported from intake.html) ---- */
+  .min-nav { position:sticky; top:0; z-index:10; height:72px;
+    background:rgba(10,11,16,.55); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
+  .min-nav .inner { max-width:1080px; margin-inline:auto; padding:0 24px;
+    height:100%; display:flex; align-items:center; gap:14px; }
+  .min-brand { display:inline-flex; align-items:center; gap:10px;
+    font-family:var(--display); font-weight:700; font-size:1.05rem; letter-spacing:-.02em; color:var(--text); }
+  .min-brand img { width:26px; height:26px; filter:drop-shadow(0 4px 12px var(--accent-glow)); }
+  .min-spacer { flex:1; }
+
+  .stage { position:relative; z-index:1; min-height:calc(100dvh - 72px); display:grid; place-items:center; padding:24px; }
+
+  /* ---- glass auth card ---- */
+  .auth-card {
+    position:relative; width:100%; max-width:432px;
+    padding: clamp(32px, 5vw, 44px) clamp(26px, 4.5vw, 40px);
+    border-radius: 26px;
+    background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(10,11,16,.55));
+    border: 1px solid rgba(255,255,255,.10);
+    box-shadow: 0 40px 90px -32px rgba(0,0,0,.72), 0 16px 40px -20px rgba(124,92,255,.22), inset 0 1px 0 rgba(255,255,255,.07);
+    text-align:center;
+  }
+  .auth-card .mark-img { width:44px; height:44px; margin:0 auto 16px; filter:drop-shadow(0 6px 18px var(--accent-glow)); }
+  .auth-card .eyebrow { display:block; margin-bottom:10px; }
+  .auth-card h1 { font-family:var(--display); font-weight:600; letter-spacing:-.02em; color:#fff;
+    font-size:1.55rem; margin:0 0 8px; }
+  .auth-card .sub { color:var(--text-2); font-size:.96rem; margin:0 0 26px; line-height:1.5; }
+
+  .google-btn {
+    width:100%; height:52px; border-radius:999px;
+    background: var(--surface-3); border:1px solid var(--hairline-2);
+    color:#fff; font-weight:600; font-size:1rem;
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    transition: background .15s var(--ease), border-color .15s var(--ease), transform .15s var(--ease), box-shadow .2s var(--ease);
+  }
+  .google-btn:hover { background:#262b3a; border-color:var(--hairline-2); transform:translateY(-1px); box-shadow:0 12px 30px -14px rgba(0,0,0,.5); }
+
+  .op-divider { display:flex; align-items:center; gap:10px; margin: 22px 0 14px;
+    color:var(--text-3); font-size:.66rem; letter-spacing:.22em; text-transform:uppercase; font-family:var(--mono); }
+  .op-divider span.rule { flex:1; height:1px; background:var(--hairline-2); }
+
+  .operator-btn {
+    width:100%; height:48px; border-radius:999px;
+    background:transparent; border:1.5px solid var(--accent-2); color:var(--accent-2);
+    font-weight:600; font-size:.95rem;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    transition: background .15s var(--ease), transform .15s var(--ease);
+  }
+  .operator-btn:hover { background:rgba(124,92,255,.1); transform:translateY(-1px); }
+  .operator-note { font-size:.76rem; color:var(--text-3); margin:10px 0 0; }
+
+  .not-configured { margin-top:18px; padding:13px 15px; border-radius:12px; text-align:left;
+    border:1px solid rgba(245,181,71,.35); background:rgba(245,181,71,.08); color:#ffcb7a; font-size:.83rem; line-height:1.5; }
+  .oauth-error { margin-top:14px; font-size:.84rem; color:var(--danger,#ff5470); min-height:1.2em; }
+
+  .help-line { text-align:center; margin-top:20px; font-size:.85rem; color:var(--text-3); }
+  .help-line a { color:var(--accent-2); }
+</style>
 </head>
 <body>
 
-<header class="nav">
-  <div class="wrap nav-inner">
-    <a class="brand" href="index.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom</a>
+<header class="min-nav">
+  <div class="inner">
+    <a class="min-brand" href="index.html"><img src="assets/phantom-logo.svg" alt=""> Phantom</a>
+    <span class="min-spacer"></span>
+    <a class="btn btn-quiet btn-sm" id="backToPlans" href="plans.html">Back to plans</a>
   </div>
 </header>
 
-<main class="section" style="min-height:calc(100dvh - 64px); display:grid; place-items:center; padding:20px">
-  <div class="card card-pad" style="max-width:420px; width:100%; padding:32px; text-align:center">
-    <img class="mark" src="assets/phantom-logo.svg" alt="" style="width:40px; height:40px; margin-bottom:12px">
-    <h1 class="h3" style="font-size:1.4rem; margin:0 0 6px">Create your account</h1>
-    <p class="muted" style="margin:0 0 22px">One click — we use Google so there's no password to lose.</p>
+<main class="stage">
+  <div class="auth-card">
+    <img class="mark-img" src="assets/phantom-logo.svg" alt="">
+    <span class="eyebrow">one click, no password</span>
+    <h1>Create your account</h1>
+    <p class="sub">We use Google so there's nothing to lose or forget.</p>
 
-    <a class="btn btn-primary btn-block" id="googleBtn" style="height:50px; display:flex; align-items:center; justify-content:center; gap:10px">
-      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#fff" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
+    <a class="google-btn" id="googleBtn">
+      <i data-icon="google" data-size="20"></i>
       Continue with Google
     </a>
 
-    <div id="operatorPath" style="display:none; margin-top:18px">
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; color:var(--text-3); font-size:.68rem; letter-spacing:.18em; text-transform:uppercase; font-family:var(--mono)">
-        <span style="flex:1; height:1px; background:var(--hairline-2)"></span>operator<span style="flex:1; height:1px; background:var(--hairline-2)"></span>
-      </div>
-      <a class="btn btn-block" id="operatorBtn" style="height:46px; display:flex; align-items:center; justify-content:center">Continue as operator →</a>
-      <p class="dim" style="font-size:.74rem; margin-top:8px; margin-bottom:0">Admin session detected — skip Google; pay or override at checkout.</p>
+    <div id="operatorPath" style="display:none">
+      <div class="op-divider"><span class="rule"></span>operator<span class="rule"></span></div>
+      <a class="operator-btn" id="operatorBtn">Continue as operator <i data-icon="arrow-right" data-size="16"></i></a>
+      <p class="operator-note">Admin session detected — skip Google; pay or override at checkout.</p>
     </div>
 
-    <div id="notConfigured" style="display:none; margin-top:16px; padding:12px; border:1px solid rgba(255,180,84,.35); border-radius:10px; color:#ffb454; font-size:.82rem; text-align:left">
+    <div id="notConfigured" class="not-configured" style="display:none">
       Google sign-in isn't configured on this environment yet (needs GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).
       Operators: use the console's <strong>Override</strong> on this intake, then return to checkout.
     </div>
-    <div id="oauthError" class="dim" style="margin-top:12px; font-size:.82rem; color:var(--danger,#ff5470)"></div>
+    <div id="oauthError" class="oauth-error"></div>
+
+    <p class="help-line">By continuing you agree to Phantom's Terms &amp; Privacy Policy.</p>
   </div>
 </main>
 
@@ -49,6 +122,10 @@
   const intakeId = params.get('intake');
   const plan = params.get('plan') || '';
   const next = '/app/checkout.html?intake=' + encodeURIComponent(intakeId || '') + (plan ? '&plan=' + encodeURIComponent(plan) : '');
+
+  // Cosmetic-only: point the header's "back" link at the same intake/plan context.
+  const backLink = document.getElementById('backToPlans');
+  if (backLink) backLink.href = 'plans.html' + (intakeId ? '?intake=' + encodeURIComponent(intakeId) : '');
 
   document.getElementById('googleBtn').href = '/auth/google/start?next=' + encodeURIComponent(next);
   document.getElementById('googleBtn').addEventListener('click', () => track('oauth.started', { plan }));

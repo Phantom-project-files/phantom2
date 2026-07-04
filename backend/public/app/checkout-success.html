@@ -7,23 +7,97 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="assets/phantom-logo.svg">
 <link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/phantom.js"></script>
 <script src="assets/track.js"></script>
+
+<style>
+  body { background:var(--bg); overflow-x:hidden; }
+  body::before {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(900px 620px at 50% -8%, rgba(124,92,255,.20), transparent 60%),
+      radial-gradient(760px 540px at 85% 100%, rgba(54,226,196,.10), transparent 65%),
+      radial-gradient(560px 360px at 8% 92%, rgba(124,92,255,.08), transparent 65%);
+  }
+
+  /* ---- min nav (shared pattern, ported from intake.html) ---- */
+  .min-nav { position:sticky; top:0; z-index:10; height:72px;
+    background:rgba(10,11,16,.55); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
+  .min-nav .inner { max-width:1080px; margin-inline:auto; padding:0 24px;
+    height:100%; display:flex; align-items:center; gap:14px; }
+  .min-brand { display:inline-flex; align-items:center; gap:10px;
+    font-family:var(--display); font-weight:700; font-size:1.05rem; letter-spacing:-.02em; color:var(--text); }
+  .min-brand img { width:26px; height:26px; filter:drop-shadow(0 4px 12px var(--accent-glow)); }
+  .min-spacer { flex:1; }
+
+  .stage { position:relative; z-index:1; min-height:calc(100dvh - 72px); display:grid; place-items:center; padding:24px; }
+
+  .success-card {
+    position:relative; width:100%; max-width:500px;
+    padding: clamp(36px, 5.5vw, 48px) clamp(28px, 5vw, 44px);
+    border-radius: 28px;
+    background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(10,11,16,.55));
+    border: 1px solid rgba(255,255,255,.10);
+    box-shadow: 0 40px 90px -32px rgba(0,0,0,.72), 0 16px 40px -20px rgba(124,92,255,.22), inset 0 1px 0 rgba(255,255,255,.07);
+    text-align:center;
+  }
+
+  .spinner { width:44px; height:44px; margin:0 auto 18px; border-radius:50%;
+    background:conic-gradient(from 0deg, transparent, var(--accent-2), transparent 70%);
+    animation:spin 1.2s linear infinite; position:relative; }
+  .spinner::before { content:""; position:absolute; inset:6px; border-radius:50%; background:var(--bg); }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation:none; } }
+
+  .check-badge { width:60px; height:60px; margin:0 auto 18px; border-radius:50%;
+    display:grid; place-items:center; color:var(--teal);
+    background: radial-gradient(circle at 35% 30%, rgba(54,226,196,.28), rgba(54,226,196,.06) 70%);
+    box-shadow: 0 0 0 1px rgba(54,226,196,.35), 0 0 34px rgba(54,226,196,.30); }
+
+  .success-card h1 { font-family:var(--display); font-weight:600; letter-spacing:-.02em; color:#fff;
+    font-size:clamp(1.3rem, 3vw, 1.6rem); margin:0 0 8px; line-height:1.25; }
+  .success-card .sub { color:var(--text-2); font-size:.98rem; margin:0; }
+
+  .next-steps { text-align:left; margin-top:26px; padding-top:22px; border-top:1px solid var(--hairline); }
+  .next-label { display:block; font-family:var(--mono); font-size:.7rem; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--text-3); margin-bottom:14px; }
+  .next-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:14px; }
+  .next-list li { display:flex; align-items:flex-start; gap:11px; color:var(--text-2); font-size:.92rem; line-height:1.5; }
+  .next-list li i { flex:0 0 auto; width:20px; height:20px; margin-top:1px; color:var(--accent-2); }
+  .next-list li:last-child i { color:var(--teal); }
+  .next-list li strong { color:#fff; font-weight:600; }
+</style>
 </head>
 <body>
 
-<main class="section" style="min-height:100dvh; display:grid; place-items:center; padding:20px">
-  <div class="card card-pad" style="max-width:480px; width:100%; padding:36px; text-align:center">
-    <img class="mark" src="assets/phantom-logo.svg" alt="" style="width:52px; height:52px; filter:drop-shadow(0 6px 18px var(--accent-glow)); margin-bottom:14px">
-    <h1 style="font-family:var(--display); color:#fff; margin:0 0 8px" id="title">Confirming your payment…</h1>
-    <p class="muted" id="detail">One moment.</p>
-    <div id="nextSteps" style="display:none; margin-top:18px; text-align:left; color:var(--text-2); font-size:.9rem; line-height:1.7">
-      <strong style="color:#fff">What happens now</strong>
-      <ol style="margin:8px 0 0; padding-left:20px">
-        <li>We cast your six Phantoms from your brand DNA</li>
-        <li>Campaigns + a month of reels &amp; posts go into production</li>
-        <li>You review everything — flag anything, we regenerate</li>
-      </ol>
-      <p class="dim" style="font-size:.8rem; margin-top:12px">Content production arrives in the next build phase — this run verified the funnel end-to-end.</p>
+<header class="min-nav">
+  <div class="inner">
+    <a class="min-brand" href="index.html"><img src="assets/phantom-logo.svg" alt=""> Phantom</a>
+    <span class="min-spacer"></span>
+    <a class="btn btn-quiet btn-sm" href="signup.html">Sign in</a>
+  </div>
+</header>
+
+<main class="stage">
+  <div class="success-card">
+    <div class="spinner" id="spinner" aria-hidden="true"></div>
+    <div class="check-badge" id="checkBadge" style="display:none" aria-hidden="true"><i data-icon="check-circle" data-size="30"></i></div>
+
+    <h1 id="title">Confirming your payment…</h1>
+    <p class="sub" id="detail">One moment.</p>
+
+    <div id="nextSteps" style="display:none">
+      <div class="next-steps">
+        <span class="next-label">What happens now</span>
+        <ol class="next-list">
+          <li><i data-icon="sparkles"></i><span>Your six Phantoms are cast from your brand DNA</span></li>
+          <li><i data-icon="film"></i><span>A month of reels &amp; posts goes into production with human QC on every piece</span></li>
+          <li><i data-icon="check-circle"></i><span>Each piece lands in <strong>your gallery</strong> as it clears QC</span></li>
+        </ol>
+      </div>
+      <a class="btn btn-primary btn-block" id="galleryBtn" href="#" style="height:52px; margin-top:24px">
+        Open your gallery <i data-icon="arrow-right" data-size="18"></i>
+      </a>
     </div>
   </div>
 </main>
@@ -33,6 +107,8 @@
   const intakeId = params.get('intake');
   const isMock = params.get('mock') === '1';
   if (!intakeId) location.replace('index.html');
+
+  document.getElementById('galleryBtn').href = 'gallery.html?intake=' + encodeURIComponent(intakeId);
 
   async function confirm() {
     if (isMock) {
@@ -44,6 +120,8 @@
     for (let i = 0; i < 12; i++) {
       const d = await (await fetch('/api/intake/' + encodeURIComponent(intakeId) + '/status', { credentials: 'same-origin' })).json();
       if (d.entitled) {
+        document.getElementById('spinner').style.display = 'none';
+        document.getElementById('checkBadge').style.display = 'grid';
         document.getElementById('title').textContent = 'Payment confirmed — the Phantoms are moving.';
         document.getElementById('detail').textContent = d.business_name + ' · ' + (d.plan || 'plan active');
         document.getElementById('nextSteps').style.display = 'block';

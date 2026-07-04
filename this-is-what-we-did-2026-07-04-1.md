@@ -98,3 +98,46 @@ credit cutoff mid-run.
    override → success → production generate (mock, $0) → gallery. Sandbox run in
    console too. Mobile spot-check. Console-error sweep.
 3. smoke.js, commit, update memory phantom_project.md.
+
+### Agents delivered (opus console + sonnet pages) — all verified in browser
+- **admin.html (opus)** — full console redesign: glass topbar (brand · "User landing ↗" ·
+  Sign out), section tabs (Sandbox · Pipeline · Audio · Analytics · System), and the NEW
+  **Sandbox pipeline runner**: scrape form → intake picker → stage strip (scraped/proposal/
+  paid/scripted/media/edited) → Override→paid (plan select) → Script-gen with CUSTOM
+  reel/post counts (+regenerate) → staged Generate media (Phantoms / N reels / N posts /
+  everything) with cost preview + mock badge → live progress (pieces/assets/queue) →
+  open-links (production/gallery/proposal/plans/scrape.json). All pre-existing panels
+  (audio/jobs/spend/funnel/journey/system) preserved and live.
+- **Funnel pages (sonnet)** — plans (AVAILABLE NOW vs locked COMING SOON cards), proposal
+  (glass frames, staggered reveal, "PROPOSAL FOR <brand>" label), signup (glass auth card,
+  operator divider), checkout (Operator checkout card), checkout-success (teal check badge,
+  FIXED stale copy, "Open your gallery →" CTA). All ids/flows/track events preserved.
+- **production.html + gallery.html (sonnet)** — production room (hero chips, phantom cards,
+  campaigns, coverage bars, Su–Sa month-grid calendar, deploy, dense pieces table w/ QC
+  circles), gallery (day-group headers, 9:16/4:5 cards, audio-note SVG instead of emoji).
+
+### Fixes found in browser verification (mine, after agents)
+- production.html: report probe fetched `/api/admin/tenant//report/latest` (404 noise) when
+  no social connection — now skipped unless connected.
+- admin.html: `.runner-empty { display:flex }` defeated the `hidden` attribute → global
+  `[hidden]{display:none!important}`; placeholder now hides when the runner loads.
+
+### Browser UI check round 2 (isolated :3021, throwaway admin creds, $0)
+- Console: login via page-context fetch (never typed a password; document.cookie writes are
+  blocked in the automation browser — server-set cookie via /admin/auth/login fetch works).
+- **Sandbox driven end-to-end через UI**: scraped "Acme Swim"/example.com → chips lit →
+  Mark paid (admin_override, standard; auto script-gen 30/30) → Script-gen custom **2 reels
+  + 3 posts** w/ regenerate (pieces: 60 → 5 exactly) → staged generate: Phantoms (6/6 ready)
+  → Reels (2 ready + assets) → Posts (3 ready) → 11 assets, all 5 pieces ready → QC-approved
+  → gallery shows day-grouped cards. Estimate showed $7.26-real / mock-$0 guardrail.
+- **Operator funnel walk**: landing (Operator-console pill) → wizard ("Coastal Coffee") →
+  restyled proposal → plans (admin detected → straight to checkout) → Operator checkout →
+  Override → success page → gallery CTA. Zero console errors on every page.
+- Mobile 390×844: plans/landing stack correctly.
+- Real :3020: all 10 app pages 200, admin.html correctly 302-gated. smoke ALL PASS.
+
+### Notes
+- Google Fonts @import lives in phantom.css line 8 (since v1; v1 prod runs with it) — NOT
+  introduced by the redesign. Self-hosting the three families is a launch-hardening item.
+- The sandbox "Mark paid" auto-runs script-gen at plan volume; use Script-gen w/ regenerate
+  for custom counts after (or script-gen first, but paying re-enqueues once — last run wins).

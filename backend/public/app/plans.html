@@ -4,39 +4,110 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Plans · Phantom</title>
+<meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="assets/phantom-logo.svg">
 <link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/phantom.js"></script>
 <script src="assets/track.js"></script>
+
 <style>
-  .stage { max-width: 1080px; margin: 0 auto; padding: 40px 20px 80px; }
-  .plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin-top: 26px; }
-  .plan { border: 1px solid var(--hairline); border-radius: 16px; padding: 24px 20px; position: relative;
-    background: var(--surface-2, rgba(255,255,255,.02)); display: flex; flex-direction: column; gap: 12px;
-    transition: border-color .15s ease, transform .15s ease; }
-  .plan:hover { border-color: rgba(124,92,255,.55); transform: translateY(-2px); }
-  .plan .badge { position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
-    background: linear-gradient(180deg, var(--accent-2,#9d86ff), var(--accent,#7c5cff)); color: #fff;
-    font-size: .68rem; font-weight: 600; letter-spacing: .06em; padding: 4px 12px; border-radius: 999px; }
-  .plan h3 { font-family: var(--display); margin: 0; color: #fff; font-size: 1.2rem; }
-  .plan .tagline { color: var(--text-3); font-size: .82rem; min-height: 2.2em; }
-  .plan .price { font-family: var(--display); font-size: 1.5rem; color: #fff; }
-  .plan ul { margin: 0; padding-left: 18px; color: var(--text-2); font-size: .85rem; line-height: 1.6; flex: 1; }
-  .canceled-note { background: rgba(255,180,84,.08); border: 1px solid rgba(255,180,84,.35);
-    border-radius: 10px; padding: 10px 14px; color: #ffb454; font-size: .85rem; margin-top: 16px; }
+  body { background:var(--bg); overflow-x:hidden; }
+  body::before {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(900px 620px at 50% -8%, rgba(124,92,255,.20), transparent 60%),
+      radial-gradient(720px 520px at 90% 110%, rgba(54,226,196,.07), transparent 65%),
+      radial-gradient(560px 360px at 8% 92%, rgba(124,92,255,.08), transparent 65%);
+  }
+
+  /* ---- min nav (shared pattern, ported from intake.html) ---- */
+  .min-nav { position:sticky; top:0; z-index:10; height:72px;
+    background:rgba(10,11,16,.55); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
+  .min-nav .inner { max-width:1100px; margin-inline:auto; padding:0 24px;
+    height:100%; display:flex; align-items:center; gap:14px; }
+  .min-brand { display:inline-flex; align-items:center; gap:10px;
+    font-family:var(--display); font-weight:700; font-size:1.05rem; letter-spacing:-.02em; color:var(--text); }
+  .min-brand img { width:26px; height:26px; filter:drop-shadow(0 4px 12px var(--accent-glow)); }
+  .min-spacer { flex:1; }
+
+  .stage { position:relative; z-index:1; max-width:1100px; margin:0 auto; padding: clamp(40px,6vh,64px) 20px 100px; }
+
+  .hero { text-align:center; max-width:620px; margin:0 auto clamp(36px,5.5vh,56px); }
+  .hero .eyebrow { display:inline-flex; align-items:center; margin-bottom:14px; }
+  .hero .eyebrow .pulse { display:inline-block; width:6px; height:6px; border-radius:50%;
+    background:var(--teal); box-shadow:0 0 12px var(--teal); margin-right:9px;
+    animation:dot-pulse 2.4s var(--ease) infinite; }
+  @keyframes dot-pulse { 0%,100% { transform:scale(1); opacity:.6; } 50% { transform:scale(1.4); opacity:1; } }
+  .hero h1 { font-family:var(--display); font-weight:700; letter-spacing:-.03em;
+    font-size:clamp(2rem, 4.8vw, 3.1rem); line-height:1.05; margin:0 0 12px;
+    background:linear-gradient(180deg, #fff 0%, #d6c9ff 60%, var(--accent-2) 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hero p { color:var(--text-2); font-size:1.02rem; margin:0 auto; max-width:52ch; }
+
+  .canceled-note { display:flex; align-items:center; gap:10px; max-width:640px; margin:0 auto 28px;
+    background:rgba(245,181,71,.1); border:1px solid rgba(245,181,71,.35); border-radius:14px;
+    padding:12px 16px; color:#ffcb7a; font-size:.88rem; }
+  .canceled-note i { flex:0 0 auto; color:#ffcb7a; }
+
+  .plan-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:18px; }
+
+  .plan { position:relative; display:flex; flex-direction:column; gap:14px;
+    padding:30px 24px 26px; border-radius:22px;
+    border:1px solid rgba(255,255,255,.08);
+    background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(10,11,16,.5));
+    box-shadow: 0 24px 60px -32px rgba(0,0,0,.7);
+    transition: transform .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease); }
+  .plan:hover { transform:translateY(-4px); border-color:rgba(124,92,255,.4); }
+
+  .plan.live { border-color:rgba(124,92,255,.55);
+    background:linear-gradient(180deg, rgba(124,92,255,.14), rgba(10,11,16,.55) 65%);
+    box-shadow: 0 30px 70px -30px rgba(124,92,255,.4), inset 0 1px 0 rgba(255,255,255,.07); }
+  .plan.soon { opacity:.5; filter:saturate(.65); }
+  .plan.soon:hover { transform:none; border-color:rgba(255,255,255,.08); }
+
+  .plan .badge { position:absolute; top:-13px; left:50%; transform:translateX(-50%);
+    display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+    padding:5px 14px; border-radius:999px; font-family:var(--mono); font-size:.64rem;
+    letter-spacing:.13em; text-transform:uppercase; }
+  .plan .badge.live-badge { background:linear-gradient(180deg, var(--accent-2), var(--accent)); color:#fff;
+    box-shadow:0 10px 24px -8px var(--accent-glow); }
+  .plan .badge.soon-badge { background:var(--surface-3); color:var(--text-3); border:1px solid var(--hairline-2); }
+  .plan .badge i { width:13px; height:13px; }
+
+  .plan .eyebrow-tag { font-family:var(--mono); font-size:.7rem; letter-spacing:.08em; color:var(--text-3); min-height:1.4em; }
+  .plan h3 { font-family:var(--display); font-size:1.28rem; margin:0; color:#fff; letter-spacing:-.01em; }
+  .plan .price { font-family:var(--display); font-size:1.55rem; color:#fff; letter-spacing:-.02em; margin-top:-2px; }
+
+  .plan ul { margin:2px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:9px; flex:1; }
+  .plan li { display:flex; gap:9px; align-items:flex-start; color:var(--text-2); font-size:.88rem; line-height:1.4; }
+  .plan li i { flex:0 0 auto; width:15px; height:15px; margin-top:2px; color:var(--teal); }
+  .plan.soon li i { color:var(--text-3); }
+
+  @media (max-width:640px) { .hero h1 { font-size:1.85rem; } }
 </style>
 </head>
 <body>
 
-<header class="nav">
-  <div class="wrap nav-inner">
-    <a class="brand" href="index.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom</a>
+<header class="min-nav">
+  <div class="inner">
+    <a class="min-brand" href="index.html"><img src="assets/phantom-logo.svg" alt=""> Phantom</a>
+    <span class="min-spacer"></span>
+    <a class="btn btn-quiet btn-sm" href="signup.html">Sign in</a>
   </div>
 </header>
 
 <main class="stage">
-  <h1 style="font-family:var(--display); color:#fff; margin:0">Pick your volume</h1>
-  <p class="dim" style="margin-top:8px">Every plan: six brand-built Phantoms, human QC on every piece, regenerate anything you flag.</p>
-  <div id="canceled" class="canceled-note" style="display:none">Checkout was canceled — your plan is saved, pick up where you left off.</div>
+  <div class="hero">
+    <span class="eyebrow"><span class="pulse"></span>choose your volume</span>
+    <h1>Pick your volume</h1>
+    <p>Every plan: six brand-built Phantoms, human QC on every piece, regenerate anything you flag.</p>
+  </div>
+
+  <div id="canceled" class="canceled-note" style="display:none">
+    <i data-icon="x" data-size="16"></i>
+    <span>Checkout was canceled — your plan is saved, pick up where you left off.</span>
+  </div>
+
   <div class="plan-grid" id="grid">loading…</div>
 </main>
 
@@ -44,25 +115,29 @@
   const params = new URLSearchParams(location.search);
   const intakeId = params.get('intake');
   if (!intakeId) location.replace('index.html');
-  if (params.get('canceled')) { document.getElementById('canceled').style.display = 'block'; track('checkout.canceled'); }
+  if (params.get('canceled')) { document.getElementById('canceled').style.display = 'flex'; track('checkout.canceled'); }
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
   fetch('/api/tiers').then((r) => r.json()).then((d) => {
     document.getElementById('grid').innerHTML = d.tiers.map((t) => {
       const soon = t.available === false;
-      return '<div class="plan"' + (soon ? ' style="opacity:.55"' : '') + '>'
-      + (soon ? '<span class="badge">Coming soon</span>' : (t.badge ? '<span class="badge">' + esc(t.badge) + '</span>' : ''))
+      const badge = soon
+        ? '<span class="badge soon-badge"><i data-icon="lock" data-size="13"></i>Coming soon</span>'
+        : (t.badge ? '<span class="badge live-badge">' + esc(t.badge) + '</span>' : '<span class="badge live-badge"><i data-icon="zap" data-size="13"></i>Available now</span>');
+      return '<div class="plan' + (soon ? ' soon' : ' live') + '">'
+      + badge
       + '<h3>' + esc(t.name) + '</h3>'
-      + '<div class="tagline">' + esc(t.tagline) + '</div>'
+      + '<div class="eyebrow-tag">' + esc(t.tagline) + '</div>'
       + '<div class="price">' + esc(t.price_label) + '</div>'
-      + '<ul>' + t.bullets.map((b) => '<li>' + esc(b) + '</li>').join('') + '</ul>'
+      + '<ul>' + t.bullets.map((b) => '<li><i data-icon="check" data-size="15"></i><span>' + esc(b) + '</span></li>').join('') + '</ul>'
       + (soon
         ? '<button class="btn btn-block" style="height:46px" disabled>Coming soon</button>'
         : '<button class="btn btn-primary btn-block" data-plan="' + esc(t.key) + '" style="height:46px">Choose ' + esc(t.name) + '</button>')
       + '</div>';
     }).join('');
     document.querySelectorAll('[data-plan]').forEach((btn) => btn.addEventListener('click', () => choose(btn.dataset.plan, btn)));
+    window.Phantom && Phantom.mountIcons();
   });
 
   async function choose(plan, btn) {

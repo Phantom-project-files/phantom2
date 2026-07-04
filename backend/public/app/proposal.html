@@ -4,52 +4,122 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Your proposal · Phantom</title>
+<meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="assets/phantom-logo.svg">
 <link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/phantom.js"></script>
 <script src="assets/track.js"></script>
+
 <style>
-  .stage { max-width: 880px; margin: 0 auto; padding: 40px 20px 80px; }
-  /* scraping progress */
-  .scanning { text-align: center; padding: 80px 20px; }
-  .scanning .pulse-ring { width: 72px; height: 72px; margin: 0 auto 22px; border-radius: 50%;
-    border: 2px solid var(--accent, #7c5cff); animation: ring 1.6s ease-out infinite; }
-  @keyframes ring { 0% { transform: scale(.7); opacity: 1 } 100% { transform: scale(1.5); opacity: 0 } }
-  .scanning .step { color: var(--text-2); font-size: .9rem; min-height: 1.4em; }
-  /* 16:9 value-prop frames */
-  .frame { aspect-ratio: 16/9; border-radius: 18px; border: 1px solid var(--hairline);
-    background: linear-gradient(160deg, rgba(124,92,255,.14), rgba(10,11,16,.9) 60%);
-    padding: clamp(22px, 5vw, 56px); display: flex; flex-direction: column; justify-content: center;
-    gap: 12px; margin-bottom: 22px; position: relative; overflow: hidden; }
-  .frame::after { content: attr(data-n) " / 3"; position: absolute; top: 16px; right: 20px;
-    font-family: var(--mono); font-size: .7rem; color: var(--text-3); }
-  .frame .eyebrow { font-size: .74rem; letter-spacing: .3em; text-transform: uppercase; color: var(--accent-2, #9d86ff); }
-  .frame h2 { font-family: var(--display); font-size: clamp(1.3rem, 3.6vw, 2.2rem); margin: 0; color: #fff; line-height: 1.1; }
-  .frame p { color: var(--text-2); max-width: 56ch; margin: 0; font-size: clamp(.9rem, 1.8vw, 1.02rem); }
-  .frame .stat { font-family: var(--display); font-size: clamp(1.4rem, 4vw, 2.4rem); color: var(--teal, #36e2c4); }
-  .cta-row { text-align: center; margin-top: 30px; }
+  body { background:var(--bg); overflow-x:hidden; }
+  body::before {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(900px 620px at 50% -8%, rgba(124,92,255,.20), transparent 60%),
+      radial-gradient(720px 520px at 90% 110%, rgba(54,226,196,.07), transparent 65%),
+      radial-gradient(560px 360px at 8% 92%, rgba(124,92,255,.08), transparent 65%);
+  }
+
+  /* ---- min nav (shared pattern, ported from intake.html) ---- */
+  .min-nav { position:sticky; top:0; z-index:10; height:72px;
+    background:rgba(10,11,16,.55); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
+  .min-nav .inner { max-width:1080px; margin-inline:auto; padding:0 24px;
+    height:100%; display:flex; align-items:center; gap:14px; }
+  .min-brand { display:inline-flex; align-items:center; gap:10px;
+    font-family:var(--display); font-weight:700; font-size:1.05rem; letter-spacing:-.02em; color:var(--text); }
+  .min-brand img { width:26px; height:26px; filter:drop-shadow(0 4px 12px var(--accent-glow)); }
+  .min-spacer { flex:1; }
+
+  .stage { position:relative; z-index:1; max-width:880px; margin:0 auto; padding: clamp(36px,6vh,64px) 20px 90px; }
+
+  /* ============ scanning state ============ */
+  .scanning { text-align:center; padding: clamp(56px,14vh,120px) 20px; }
+  .scanning .pulse-ring-wrap { position:relative; width:88px; height:88px; margin:0 auto 26px; display:grid; place-items:center; }
+  .scanning .pulse-ring { position:absolute; inset:0; border-radius:50%;
+    border:2px solid var(--accent, #7c5cff); animation: ring 1.8s ease-out infinite; }
+  .scanning .pulse-ring.d2 { animation-delay:.6s; }
+  .scanning .pulse-core { width:14px; height:14px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, var(--accent-2), var(--accent));
+    box-shadow: 0 0 22px var(--accent-glow); }
+  @keyframes ring { 0% { transform: scale(.55); opacity:.9 } 100% { transform: scale(1.7); opacity:0 } }
+  .scanning h2 { font-family:var(--display); font-weight:600; letter-spacing:-.02em; color:#fff;
+    font-size:clamp(1.4rem, 3.4vw, 1.9rem); margin:0 0 12px; }
+  .scanning .step { color:var(--text-2); font-size:.92rem; min-height:1.4em;
+    font-family:var(--mono); letter-spacing:.02em; transition:opacity .25s var(--ease); }
+  @media (prefers-reduced-motion: reduce) { .scanning .pulse-ring { animation:none; opacity:.5; } }
+
+  /* ============ proposal eyebrow / label ============ */
+  .proposal-label { display:flex; align-items:center; justify-content:center; gap:9px;
+    margin: 0 0 26px; font-family:var(--mono); font-size:.72rem; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--text-3); }
+  .proposal-label .pulse { display:inline-block; width:6px; height:6px; border-radius:50%;
+    background:var(--teal); box-shadow:0 0 12px var(--teal); animation:dot-pulse 2.4s var(--ease) infinite; }
+  .proposal-label strong { color:var(--accent-2); font-weight:600; letter-spacing:0; text-transform:none; }
+  @keyframes dot-pulse { 0%,100% { transform:scale(1); opacity:.6; } 50% { transform:scale(1.4); opacity:1; } }
+
+  /* ============ 16:9 value-prop frames (glass) ============ */
+  #frames > .frame {
+    opacity:0; transform:translateY(18px);
+    animation: frame-rise .7s var(--ease) forwards;
+  }
+  #frames > .frame:nth-of-type(1) { animation-delay:.08s; }
+  #frames > .frame:nth-of-type(2) { animation-delay:.24s; }
+  #frames > .frame:nth-of-type(3) { animation-delay:.40s; }
+  @keyframes frame-rise { to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: reduce) {
+    #frames > .frame { animation:none; opacity:1; transform:none; }
+  }
+
+  .frame {
+    aspect-ratio: 16/9; border-radius: 24px;
+    border: 1px solid rgba(255,255,255,.10);
+    background: linear-gradient(160deg, rgba(124,92,255,.16), rgba(10,11,16,.92) 62%);
+    box-shadow: 0 30px 70px -32px rgba(0,0,0,.7), 0 14px 34px -18px rgba(124,92,255,.22), inset 0 1px 0 rgba(255,255,255,.06);
+    padding: clamp(24px, 5vw, 58px); display: flex; flex-direction: column; justify-content: center;
+    gap: 12px; margin-bottom: 20px; position: relative; overflow: hidden;
+  }
+  .frame::after { content: attr(data-n) " / 3"; position: absolute; top: 18px; right: 22px;
+    font-family: var(--mono); font-size: .68rem; letter-spacing:.06em; color: var(--text-3); }
+  .frame .eyebrow { font-family:var(--mono); font-size: .74rem; letter-spacing: .28em; text-transform: uppercase; color: var(--accent-2); }
+  .frame h2 { font-family: var(--display); font-weight:600; font-size: clamp(1.3rem, 3.6vw, 2.2rem); margin: 0; color: #fff; line-height: 1.15; letter-spacing:-.01em; }
+  .frame p { color: var(--text-2); max-width: 56ch; margin: 0; font-size: clamp(.9rem, 1.8vw, 1.02rem); line-height:1.5; }
+  .frame .stat { font-family: var(--display); font-weight:600; font-size: clamp(1.4rem, 4vw, 2.4rem);
+    color: var(--teal, #36e2c4); text-shadow: 0 0 30px rgba(54,226,196,.35); }
+  .cta-row { text-align: center; margin-top: 32px; }
+
+  /* ============ failed state ============ */
+  #failed { text-align:center; padding: clamp(56px,12vh,100px) 20px; }
+  #failed h2 { font-family:var(--display); font-weight:600; color:#fff; font-size:clamp(1.4rem,3.4vw,1.9rem); margin:0 0 10px; }
+  #failed p { margin:0 0 26px; }
 </style>
 </head>
 <body>
 
-<header class="nav">
-  <div class="wrap nav-inner">
-    <a class="brand" href="index.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom</a>
+<header class="min-nav">
+  <div class="inner">
+    <a class="min-brand" href="index.html"><img src="assets/phantom-logo.svg" alt=""> Phantom</a>
+    <span class="min-spacer"></span>
+    <a class="btn btn-quiet btn-sm" href="signup.html">Sign in</a>
   </div>
 </header>
 
 <main class="stage">
   <div id="scanning" class="scanning">
-    <div class="pulse-ring"></div>
-    <h2 style="font-family:var(--display); color:#fff; margin:0 0 10px" id="scanTitle">Reading your brand…</h2>
+    <div class="pulse-ring-wrap" aria-hidden="true">
+      <div class="pulse-ring"></div>
+      <div class="pulse-ring d2"></div>
+      <div class="pulse-core"></div>
+    </div>
+    <h2 id="scanTitle">Reading your brand…</h2>
     <div class="step" id="scanStep">Fetching your website</div>
   </div>
 
   <div id="frames" style="display:none"></div>
 
-  <div id="failed" style="display:none; text-align:center; padding:60px 20px">
-    <h2 style="font-family:var(--display); color:#fff">We couldn't reach that site</h2>
+  <div id="failed" style="display:none">
+    <h2>We couldn't reach that site</h2>
     <p class="dim" id="failReason"></p>
-    <a class="btn" href="intake.html">Try another website</a>
+    <a class="btn btn-primary" href="intake.html" style="height:48px; padding:0 26px">Try another website</a>
   </div>
 </main>
 
@@ -72,7 +142,7 @@
     document.getElementById('scanning').style.display = 'none';
     const el = document.getElementById('frames');
     el.style.display = 'block';
-    el.innerHTML = '<p class="dim mono" style="font-size:.75rem; letter-spacing:.1em; text-transform:uppercase">Proposal · ' + esc(businessName) + '</p>'
+    el.innerHTML = '<p class="proposal-label"><span class="pulse"></span>Proposal for <strong>' + esc(businessName) + '</strong></p>'
       + vp.frames.map((f, i) =>
         '<section class="frame" data-n="' + (i + 1) + '">'
         + '<span class="eyebrow">' + esc(f.eyebrow) + '</span>'
@@ -80,9 +150,10 @@
         + (f.stat ? '<div class="stat">' + esc(f.stat) + '</div>' : '')
         + '<p>' + esc(f.body) + '</p>'
         + '</section>').join('')
-      + '<div class="cta-row"><a class="btn btn-primary" style="height:52px; padding:0 34px" '
+      + '<div class="cta-row"><a class="btn btn-primary" style="height:54px; padding:0 36px" '
       + 'href="plans.html?intake=' + encodeURIComponent(intakeId) + '" '
-      + 'onclick="track(\'proposal.cta_clicked\')">See plans →</a></div>';
+      + 'onclick="track(\'proposal.cta_clicked\')">See plans <i data-icon="arrow-right" data-size="18"></i></a></div>';
+    window.Phantom && Phantom.mountIcons();
     track('proposal.viewed');
   }
 

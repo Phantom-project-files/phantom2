@@ -7,19 +7,55 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="assets/phantom-logo.svg">
 <link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/phantom.js"></script>
 <script src="assets/track.js"></script>
 <style>
-  .stage { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
-  .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
-  .item { border: 1px solid var(--hairline); border-radius: 14px; overflow: hidden; background: var(--surface-2, rgba(255,255,255,.02)); }
-  .item .media { aspect-ratio: 4/5; background: #0a0b10; display: grid; place-items: center; }
-  .item .media img, .item .media video { width: 100%; height: 100%; object-fit: cover; }
-  .item .meta { padding: 10px 12px; font-size: .78rem; color: var(--text-2); }
-  .item .meta .row { display: flex; justify-content: space-between; gap: 8px; color: var(--text-3); font-family: var(--mono); font-size: .68rem; margin-bottom: 4px; }
-  .item .audio { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--hairline); font-size: .72rem; color: var(--text-2); }
-  .item .audio b { color: #fff; font-weight: 600; }
-  .item .audio a { color: rgba(124,92,255,.95); }
+  body { background: var(--bg); color: var(--text); min-height: 100dvh; }
+  body::before {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(900px 620px at 50% -8%, rgba(124,92,255,.22), transparent 60%),
+      radial-gradient(720px 520px at 90% 110%, rgba(54,226,196,.07), transparent 65%),
+      radial-gradient(560px 360px at 8% 92%, rgba(124,92,255,.08), transparent 65%);
+  }
+
+  .stage { position:relative; z-index:1; max-width:1180px; margin:0 auto; padding:36px 20px 90px; }
+
+  .gallery-hero { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; margin-bottom:30px; }
+  .gallery-hero h1 { font-family:var(--display); font-weight:600; letter-spacing:-.02em; font-size:clamp(1.7rem,3.6vw,2.5rem); color:#fff; margin:8px 0 4px; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:18px; }
+
+  .day-head { grid-column:1/-1; font-family:var(--mono); font-size:.72rem; text-transform:uppercase; letter-spacing:.12em; color:var(--text-3); margin:26px 0 2px; padding-bottom:8px; border-bottom:1px solid var(--hairline); }
+  .day-head:first-child { margin-top:0; }
+
+  .item { border:1px solid var(--hairline); border-radius:var(--r-lg); overflow:hidden; background:linear-gradient(180deg, var(--surface), var(--bg-2)); transition:transform .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease); }
+  .item:hover { transform:translateY(-4px); border-color:rgba(124,92,255,.4); box-shadow:0 20px 46px -24px rgba(0,0,0,.65), 0 0 0 1px rgba(124,92,255,.18); }
+  .item .media { background:#0a0b10; display:grid; place-items:center; position:relative; }
+  .item.reel .media { aspect-ratio:9/16; }
+  .item.post .media { aspect-ratio:4/5; }
+  .item .media img, .item .media video { width:100%; height:100%; object-fit:cover; display:block; }
+  .item .meta { padding:12px 14px 14px; font-size:.8rem; color:var(--text-2); }
+  .item .row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:9px; }
+  .k-chip { display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:.66rem; text-transform:uppercase; letter-spacing:.06em; color:var(--text-3); }
+  .k-chip i { width:13px; height:13px; color:var(--accent-2); }
+  .k-chip .date-chip { color:var(--text-3); text-transform:none; letter-spacing:0; margin-left:2px; }
+  .status-pill { font-family:var(--mono); font-size:.62rem; text-transform:uppercase; padding:2px 8px; border-radius:999px; border:1px solid var(--hairline-2); color:var(--text-2); white-space:nowrap; }
+  .status-pill.approved { color:#9af2e2; border-color:rgba(54,226,196,.4); background:rgba(54,226,196,.1); }
+  .caption { color:var(--text-2); font-size:.82rem; line-height:1.45; margin-bottom:9px; }
+
+  .audio-note { display:flex; gap:9px; align-items:flex-start; margin-top:2px; padding:9px 11px; border-radius:12px; background:rgba(124,92,255,.08); border:1px solid rgba(124,92,255,.22); font-size:.72rem; color:var(--text-2); line-height:1.5; }
+  .audio-note svg { flex:0 0 auto; margin-top:2px; color:var(--accent-2); }
+  .audio-note b { color:#fff; font-weight:600; }
+  .audio-note a { color:var(--accent-2); font-weight:500; }
+
+  .empty-state { grid-column:1/-1; text-align:center; padding:90px 20px; color:var(--text-3); border:1px dashed var(--hairline-2); border-radius:var(--r-lg); }
+  .empty-state i { color:var(--text-3); }
+  .empty-state div { margin-top:12px; font-size:.92rem; }
+
+  @media (max-width:560px) {
+    .grid { grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:12px; }
+  }
 </style>
 </head>
 <body>
@@ -31,10 +67,13 @@
 </header>
 
 <main class="stage">
-  <div class="head">
-    <div><h1 style="font-family:var(--display); color:#fff; margin:0" id="title">Your content</h1>
-      <span class="dim" style="font-size:.82rem" id="count"></span></div>
-    <a class="btn btn-primary" id="zipBtn" style="height:44px" download>Download all (.zip)</a>
+  <div class="gallery-hero">
+    <div>
+      <span class="eyebrow">Your content</span>
+      <h1 id="title">Your content</h1>
+      <span class="dim" style="font-size:.82rem" id="count"></span>
+    </div>
+    <a class="btn btn-primary" id="zipBtn" style="height:44px" download><i data-icon="download"></i> Download all (.zip)</a>
   </div>
   <div class="grid" id="grid"><span class="dim">loading…</span></div>
 </main>
@@ -45,13 +84,33 @@ if (!intakeId) document.getElementById('grid').textContent = 'missing ?intake=';
 document.getElementById('zipBtn').href = '/api/intake/' + encodeURIComponent(intakeId) + '/download.zip';
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function dayLabel(dateStr) {
+  const dt = new Date(dateStr + 'T00:00:00');
+  if (isNaN(dt)) return esc(dateStr);
+  return DOW[dt.getDay()] + ' · ' + MON[dt.getMonth()] + ' ' + dt.getDate();
+}
+// 24-grid stroke icon, consistent with assets/phantom.js's icon set — used in
+// place of an emoji for the audio-instruction note (music note, not a data-icon
+// since "music" isn't part of the approved icon whitelist).
+const MUSIC_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+
 (async () => {
   const r = await fetch('/api/intake/' + encodeURIComponent(intakeId) + '/gallery', { credentials: 'same-origin' });
   const d = await r.json();
   if (!d.success) { document.getElementById('grid').textContent = d.error; return; }
   document.getElementById('title').textContent = d.business_name + ' — your content';
   document.getElementById('count').textContent = d.items.length + ' pieces ready';
-  document.getElementById('grid').innerHTML = d.items.map((it) => {
+
+  let html = '';
+  let lastDate;
+  d.items.forEach((it) => {
+    const dateKey = it.scheduled_date || null;
+    if (dateKey !== lastDate) {
+      html += '<div class="day-head">' + (dateKey ? dayLabel(dateKey) : 'Unscheduled') + '</div>';
+      lastDate = dateKey;
+    }
     const src = '/api/intake/' + encodeURIComponent(intakeId) + '/media/' + it.asset_id;
     // reels play WITH the trending audio here (preview); the download is silent.
     const media = it.kind === 'reel'
@@ -62,14 +121,18 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({
     if (ai && ai.track_title) {
       const by = ai.track_artist ? ' by ' + esc(ai.track_artist) : '';
       const find = ai.source_url ? ' · <a href="' + esc(ai.source_url) + '" target="_blank" rel="noopener">find sound</a>' : '';
-      audio = '<div class="audio">🎵 Preview only — on upload, add <b>' + esc(ai.track_title) + '</b>' + by + ' natively' + find + '. Cuts are beat-synced; start the sound at 0:00.</div>';
+      audio = '<div class="audio-note">' + MUSIC_SVG + '<span>Preview only — on upload, add <b>' + esc(ai.track_title) + '</b>' + by + ' natively' + find + '. Cuts are beat-synced; start the sound at 0:00.</span></div>';
     } else if (it.kind === 'reel') {
-      audio = '<div class="audio">🎵 Preview only — the download is silent; add a trending sound of your choice on upload.</div>';
+      audio = '<div class="audio-note">' + MUSIC_SVG + '<span>Preview only — the download is silent; add a trending sound of your choice on upload.</span></div>';
     }
-    return '<div class="item"><div class="media">' + media + '</div><div class="meta">'
-      + '<div class="row"><span>' + it.kind + ' · ' + esc(it.scheduled_date) + '</span><span>' + esc(it.status) + '</span></div>'
-      + esc(it.caption || '') + audio + '</div></div>';
-  }).join('') || '<span class="dim">nothing ready yet — check back soon</span>';
+    html += '<div class="item ' + (it.kind === 'reel' ? 'reel' : 'post') + '"><div class="media">' + media + '</div><div class="meta">'
+      + '<div class="row"><span class="k-chip"><i data-icon="' + (it.kind === 'reel' ? 'film' : 'image') + '" data-size="13"></i>' + esc(it.kind) + '<span class="date-chip">· ' + esc(it.scheduled_date) + '</span></span>'
+      + '<span class="status-pill' + (it.status === 'approved' ? ' approved' : '') + '">' + esc(it.status) + '</span></div>'
+      + (it.caption ? '<div class="caption">' + esc(it.caption) + '</div>' : '')
+      + audio + '</div></div>';
+  });
+  document.getElementById('grid').innerHTML = html || '<div class="empty-state"><i data-icon="sparkles" data-size="26"></i><div>content lands here as it clears QC</div></div>';
+  Phantom.mountIcons();
   track('gallery.viewed', { items: d.items.length });
 })();
 </script>

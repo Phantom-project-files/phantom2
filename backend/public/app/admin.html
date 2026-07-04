@@ -7,116 +7,331 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="assets/phantom-logo.svg">
 <link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/phantom.js"></script>
 <style>
+  /* fixed radial purple glows (body::before pattern from index.html) */
+  body { background: var(--bg); }
+  body::before {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(900px 620px at 82% -8%, rgba(124,92,255,.16), transparent 60%),
+      radial-gradient(720px 520px at -6% 8%, rgba(54,226,196,.06), transparent 62%),
+      radial-gradient(560px 360px at 50% 118%, rgba(124,92,255,.07), transparent 65%);
+  }
+  .relative-z { position:relative; z-index:1; }
+
+  /* ---- topbar ---- */
+  .nav .op-link { margin-left:6px; }
+  .op-link { display:inline-flex; align-items:center; gap:5px; font-size:.82rem; color:var(--accent-2); font-weight:500; white-space:nowrap; }
+  .op-link:hover { color:var(--text); }
+  .op-link svg { width:13px; height:13px; }
+
+  /* ---- section nav (sticky under topbar) ---- */
+  .sec-nav { position:sticky; top:64px; z-index:1000; background:rgba(10,11,16,.78); backdrop-filter:blur(12px);
+             border-bottom:1px solid var(--hairline); }
+  .sec-nav-inner { display:flex; gap:4px; align-items:center; height:52px; overflow-x:auto; }
+  .sec-tab { display:inline-flex; align-items:center; gap:7px; padding:8px 15px; border-radius:var(--r-full);
+             border:1px solid transparent; background:transparent; color:var(--text-2); font-weight:600; font-size:.9rem;
+             cursor:pointer; white-space:nowrap; transition:all .15s var(--ease); }
+  .sec-tab:hover { color:var(--text); background:var(--surface); }
+  .sec-tab.active { color:var(--text); background:rgba(124,92,255,.12); border-color:rgba(124,92,255,.35); }
+  .sec-tab svg { width:15px; height:15px; opacity:.9; }
+
+  /* ---- generic panels (preserved shapes) ---- */
   .grid2 { display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap:16px; }
-  .panel h2 { font-size:1.02rem; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between; }
+  .panel h2, .card-pad h2 { font-size:1.02rem; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
   table { width:100%; border-collapse:collapse; font-size:.84rem; }
   th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--hairline); }
   th { color:var(--text-3); font-weight:500; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; }
   td.num { font-variant-numeric: tabular-nums; }
   .badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:.72rem; font-family:var(--mono);
-           border:1px solid var(--hairline); color:var(--text-2); margin-right:6px; }
+           border:1px solid var(--hairline); color:var(--text-2); margin-right:6px; background:transparent; }
   .badge.ok { border-color: rgba(54,226,196,.4); color:#36e2c4; }
   .badge.warn { border-color: rgba(255,180,84,.5); color:#ffb454; }
-  .empty { color:var(--text-3); font-size:.86rem; padding:10px 0; }
+  .empty { color:var(--text-3); font-size:.86rem; padding:10px 0; text-align:left; border:0; }
   .phases li { margin:4px 0; color:var(--text-2); font-size:.88rem; }
   .phases li.done { color:#36e2c4; }
   .phases li.now { color:#fff; font-weight:600; }
   .chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:.68rem; font-family:var(--mono);
-          border:1px solid var(--hairline); margin:2px 3px 2px 0; white-space:nowrap; }
+          border:1px solid var(--hairline); margin:2px 3px 2px 0; white-space:nowrap; color:var(--text-2); }
   .chip.scraped { border-color:rgba(54,226,196,.5); color:#36e2c4; }
   .chip.partial { border-color:rgba(255,180,84,.5); color:#ffb454; }
   .chip.blocked_needs_apify { border-color:rgba(255,84,112,.55); color:#ff5470; }
   .chip.failed, .chip.not_found { border-color:rgba(255,84,112,.35); color:var(--text-3); }
   .chip.pending, .chip.skipped { color:var(--text-3); }
-  .intake-row { padding:10px 0; border-bottom:1px solid var(--hairline); }
-  .intake-row .top { display:flex; justify-content:space-between; gap:10px; align-items:baseline; flex-wrap:wrap; }
+
+  /* ---- sandbox ---- */
+  .sb-title { font-family:var(--display); font-weight:600; letter-spacing:-.02em; line-height:1.1; margin:4px 0 6px; }
+  h1.sb-title { font-size:clamp(1.7rem, 3.2vw, 2.2rem); }
+  .sb-grid { display:grid; grid-template-columns: minmax(320px, 400px) 1fr; gap:16px; align-items:start; }
+  @media (max-width: 960px) { .sb-grid { grid-template-columns:1fr; } }
+
+  /* intake picker */
+  .pick { display:block; width:100%; text-align:left; padding:11px 13px; border:1px solid var(--hairline);
+          border-radius:var(--r-md); background:var(--bg-2); margin-bottom:8px; cursor:pointer;
+          transition:border-color .15s var(--ease), background .15s var(--ease), box-shadow .15s var(--ease); color:inherit; }
+  .pick:hover { border-color:var(--hairline-2); background:var(--surface-2); }
+  .pick.selected { border-color:rgba(124,92,255,.55); box-shadow:inset 0 0 0 1px rgba(124,92,255,.35); background:rgba(124,92,255,.07); }
+  .pick .top { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+  .pick .name { font-weight:600; font-size:.92rem; color:var(--text); }
+  .pick .meta { font-family:var(--mono); font-size:.68rem; color:var(--text-3); margin:3px 0 6px; }
+  .pick .chips { line-height:1.9; }
+
+  /* runner */
+  [hidden] { display:none !important; } /* author display rules must not defeat the hidden attribute */
+  .runner-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+                  min-height:280px; color:var(--text-3); text-align:center; }
+  .runner-empty svg { width:26px; height:26px; opacity:.5; }
+  .open-links { display:flex; flex-wrap:wrap; gap:12px 16px; }
+
+  .stage-strip { display:flex; flex-wrap:wrap; gap:8px; }
+  .stage { display:inline-flex; align-items:center; gap:8px; padding:7px 13px; border-radius:var(--r-full);
+           border:1px solid var(--hairline); font-family:var(--mono); font-size:.7rem; letter-spacing:.08em;
+           text-transform:uppercase; color:var(--text-3); background:var(--bg-2); }
+  .stage .d { width:7px; height:7px; border-radius:50%; background:currentColor; opacity:.45; }
+  .stage.done { color:var(--teal); border-color:rgba(54,226,196,.35); background:rgba(54,226,196,.06); }
+  .stage.done .d { opacity:1; box-shadow:0 0 8px var(--teal); }
+  .stage.now { color:var(--accent-2); border-color:rgba(124,92,255,.5); background:rgba(124,92,255,.10); }
+  .stage.now .d { opacity:1; box-shadow:0 0 10px var(--accent-glow); animation:sbdot 1.6s var(--ease) infinite; }
+  @keyframes sbdot { 0%,100% { transform:scale(1); opacity:.6; } 50% { transform:scale(1.5); opacity:1; } }
+
+  .ctl { border:1px solid var(--hairline); border-radius:var(--r-md); padding:14px 16px; background:var(--bg-2); }
+  .ctl.locked { opacity:.45; pointer-events:none; }
+  .ctl-h { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:.68rem; letter-spacing:.16em;
+           text-transform:uppercase; color:var(--text-3); margin-bottom:11px; }
+  .ctl-h svg { width:13px; height:13px; opacity:.85; }
+  .ctl-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+  .ctl-msg { font-size:.8rem; color:var(--text-2); align-self:center; min-height:1em; }
+  .ctl-msg.err { color:var(--danger); }
+  .ctl-hint { font-size:.76rem; color:var(--text-3); margin:10px 0 0; line-height:1.5; }
+  .mini-field { display:flex; flex-direction:column; gap:5px; }
+  .mini-field > span { font-family:var(--mono); font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--text-3); }
+  .inp-sm { height:38px; padding:8px 11px; font-size:.9rem; width:auto; }
+  .inp-xs { width:66px; height:38px; padding:8px; text-align:center; font-size:.9rem; }
+  select.inp-sm { min-width:118px; }
+  .chk { display:inline-flex; align-items:center; gap:7px; font-size:.82rem; color:var(--text-2); align-self:center; cursor:pointer; }
+  .chk input { width:15px; height:15px; accent-color:var(--accent); }
+
+  .estimate { font-size:.85rem; color:var(--text-2); background:var(--surface-2); border:1px solid var(--hairline);
+              border-radius:var(--r); padding:11px 13px; line-height:1.6; margin-bottom:12px; }
+  .estimate b { color:var(--text); }
+  .gen-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .gen-cell { display:flex; gap:6px; align-items:center; }
+
+  .counts { display:flex; flex-direction:column; gap:9px; }
+  .cnt-grp { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .cnt-lbl { font-family:var(--mono); font-size:.64rem; letter-spacing:.12em; text-transform:uppercase; color:var(--text-3); width:56px; flex:0 0 auto; }
+  .pill-c { display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:var(--r-full);
+            border:1px solid var(--hairline); font-family:var(--mono); font-size:.7rem; color:var(--text-2); }
+  .pill-c.rendering { border-color:rgba(255,180,84,.5); color:#ffb454; }
+  .pill-c.ready, .pill-c.approved { border-color:rgba(54,226,196,.4); color:#36e2c4; }
+  .pill-c.failed { border-color:rgba(255,84,112,.4); color:#ff5470; }
+  .pill-c b { color:var(--text); font-weight:600; }
 </style>
 </head>
 <body>
 
-<header class="nav">
+<header class="nav relative-z">
   <div class="wrap nav-inner">
-    <a class="brand" href="admin.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom <small>2.0 operator</small></a>
-    <button class="btn" id="logoutBtn" style="height:36px">Sign out</button>
+    <a class="brand" href="admin.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom <small>console</small></a>
+    <span class="nav-spacer"></span>
+    <a class="op-link" href="index.html" target="_blank" rel="noopener">User landing <i data-icon="arrow-right" data-size="13"></i></a>
+    <button class="btn btn-sm" id="logoutBtn" style="margin-left:16px">Sign out</button>
   </div>
 </header>
 
-<main class="section" style="padding-top:28px">
+<nav class="sec-nav relative-z">
+  <div class="wrap sec-nav-inner">
+    <button class="sec-tab active" data-sec="sandbox"><i data-icon="sparkles" data-size="15"></i> Sandbox</button>
+    <button class="sec-tab" data-sec="pipeline"><i data-icon="zap" data-size="15"></i> Pipeline</button>
+    <button class="sec-tab" data-sec="audio"><i data-icon="play" data-size="15"></i> Audio</button>
+    <button class="sec-tab" data-sec="analytics"><i data-icon="grid" data-size="15"></i> Analytics</button>
+    <button class="sec-tab" data-sec="system"><i data-icon="shield" data-size="15"></i> System</button>
+  </div>
+</nav>
+
+<main class="section relative-z" style="padding-top:26px">
   <div class="wrap stack" style="gap:16px">
 
-    <div class="card card-pad panel">
-      <h2>System <span id="modeBadges"></span></h2>
-      <div id="statusLine" class="dim mono" style="font-size:.8rem">loading…</div>
-    </div>
+    <!-- ================= SANDBOX ================= -->
+    <section data-sec-panel="sandbox" class="stack" style="gap:18px">
+      <div>
+        <div class="eyebrow">operator sandbox</div>
+        <h1 class="sb-title">Pipeline runner</h1>
+        <p class="dim" style="max-width:66ch; font-size:.9rem; margin-top:2px">
+          Scrape a brand, override payment, script-gen with custom counts, then generate media in stages and
+          watch every piece move through the pipeline.
+        </p>
+      </div>
 
-    <div class="grid2">
+      <div class="sb-grid">
+        <!-- left column: create + picker -->
+        <div class="stack" style="gap:16px">
+          <div class="card card-pad">
+            <div class="ctl-h"><i data-icon="search" data-size="14"></i> new scrape</div>
+            <form id="intakeForm" class="stack" style="gap:10px">
+              <input class="input" name="business_name" placeholder="Business name" required>
+              <input class="input" name="website" placeholder="Website (example.com)" required>
+              <button class="btn btn-primary" type="submit" id="intakeBtn">Scrape brand</button>
+            </form>
+            <div id="intakeMsg" class="dim" style="font-size:.82rem; min-height:1em; margin-top:8px"></div>
+          </div>
+
+          <div class="card card-pad">
+            <div class="ctl-h"><i data-icon="grid" data-size="14"></i> intakes · latest 50</div>
+            <div id="intakesPanel" style="max-height:64vh; overflow:auto"><div class="empty">loading…</div></div>
+          </div>
+        </div>
+
+        <!-- right column: runner -->
+        <div class="card card-pad" id="sbRunner">
+          <div id="sbEmpty" class="runner-empty">
+            <i data-icon="sparkles" data-size="26"></i>
+            <p>Select an intake on the left to load the runner.</p>
+          </div>
+
+          <div id="sbBody" hidden class="stack" style="gap:16px">
+            <div class="between row wrap-row" style="align-items:flex-start; gap:12px">
+              <div>
+                <h2 id="sbTitle" class="sb-title" style="font-size:1.32rem; margin:0"></h2>
+                <div id="sbSub" class="mono dim" style="font-size:.76rem; margin-top:3px"></div>
+              </div>
+              <div id="sbOpenLinks" class="open-links"></div>
+            </div>
+
+            <div>
+              <div class="ctl-h" style="margin-bottom:9px"><i data-icon="zap" data-size="14"></i> pipeline stages</div>
+              <div id="sbStrip" class="stage-strip"></div>
+            </div>
+
+            <!-- override -->
+            <div class="ctl" id="sbCtlOverride">
+              <div class="ctl-h"><i data-icon="lock" data-size="13"></i> override → paid</div>
+              <div class="ctl-row">
+                <label class="mini-field"><span>plan</span>
+                  <select class="input inp-sm" id="sbPlanSel">
+                    <option value="standard" selected>standard</option>
+                    <option value="premium">premium</option>
+                    <option value="ultra">ultra</option>
+                    <option value="overkill">overkill</option>
+                  </select>
+                </label>
+                <button class="btn btn-sm" id="sbOverrideBtn" type="button">Mark paid</button>
+                <span id="sbOverrideMsg" class="ctl-msg"></span>
+              </div>
+              <p class="ctl-hint">Skips OAuth + Stripe and unlocks generation. Paying auto-enqueues script-gen once. Override ignores the coming-soon tier gate — it is the operator's sandbox lever.</p>
+            </div>
+
+            <!-- script-gen -->
+            <div class="ctl" id="sbCtlScript">
+              <div class="ctl-h"><i data-icon="calendar" data-size="13"></i> script-gen</div>
+              <div class="ctl-row">
+                <label class="mini-field"><span>reels 1–200</span><input class="input inp-sm inp-xs" id="sbReels" type="number" min="1" max="200" placeholder="plan"></label>
+                <label class="mini-field"><span>posts 1–300</span><input class="input inp-sm inp-xs" id="sbPosts" type="number" min="1" max="300" placeholder="plan"></label>
+                <label class="chk"><input type="checkbox" id="sbRegen"> regenerate (wipe + rebuild)</label>
+                <button class="btn btn-sm" id="sbScriptBtn" type="button">Generate scripts</button>
+                <span id="sbScriptMsg" class="ctl-msg"></span>
+              </div>
+              <p class="ctl-hint">Custom counts override the plan; leave blank to use the plan default. Regenerate wipes campaigns + pieces and rebuilds from scratch.</p>
+            </div>
+
+            <!-- generate media -->
+            <div class="ctl" id="sbCtlGen">
+              <div class="ctl-h"><i data-icon="film" data-size="13"></i> generate media · in stages</div>
+              <div id="sbEstimate" class="estimate">—</div>
+              <div class="gen-row">
+                <button class="btn btn-sm" id="sbGenPhantoms" type="button"><i data-icon="user" data-size="14"></i> Phantoms</button>
+                <div class="gen-cell">
+                  <input class="input inp-xs" id="sbGenReelsN" type="number" min="0" value="0" aria-label="reels to generate">
+                  <button class="btn btn-sm" id="sbGenReels" type="button"><i data-icon="film" data-size="14"></i> Reels</button>
+                </div>
+                <div class="gen-cell">
+                  <input class="input inp-xs" id="sbGenPostsN" type="number" min="0" value="0" aria-label="posts to generate">
+                  <button class="btn btn-sm" id="sbGenPosts" type="button"><i data-icon="image" data-size="14"></i> Posts</button>
+                </div>
+                <button class="btn btn-primary btn-sm" id="sbGenAll" type="button"><i data-icon="zap" data-size="14"></i> Everything remaining</button>
+              </div>
+              <div id="sbGenMsg" class="ctl-msg" style="margin-top:10px"></div>
+              <p class="ctl-hint" id="sbCost"></p>
+            </div>
+
+            <!-- live progress -->
+            <div class="ctl">
+              <div class="ctl-h"><i data-icon="grid" data-size="13"></i> live progress</div>
+              <div id="sbCounts" class="counts"></div>
+              <div id="sbQueue" class="mono dim" style="font-size:.72rem; margin-top:10px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= PIPELINE ================= -->
+    <section data-sec-panel="pipeline" hidden class="grid2">
       <div class="card card-pad panel">
         <h2>Jobs queue</h2>
         <div id="jobsPanel"><div class="empty">loading…</div></div>
       </div>
-
       <div class="card card-pad panel">
         <h2>Spend (24h)</h2>
         <div id="costsPanel"><div class="empty">loading…</div></div>
       </div>
-    </div>
+    </section>
 
-    <div class="card card-pad panel">
-      <h2>Funnel &amp; scraper sandbox
-        <span style="font-weight:400"><a href="index.html" class="dim" style="font-size:.78rem" target="_blank">open funnel ↗</a></span>
-      </h2>
-      <form id="intakeForm" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px">
-        <input class="input" name="business_name" placeholder="Business name" required style="flex:1; min-width:160px">
-        <input class="input" name="website" placeholder="Website (example.com)" required style="flex:2; min-width:220px">
-        <button class="btn btn-primary" type="submit" id="intakeBtn" style="height:42px">Scrape</button>
-      </form>
-      <div id="intakeMsg" class="dim" style="font-size:.82rem; min-height:1em; margin-bottom:8px"></div>
-      <div id="intakesPanel"><div class="empty">loading…</div></div>
-    </div>
+    <!-- ================= AUDIO ================= -->
+    <section data-sec-panel="audio" hidden>
+      <div class="card card-pad panel">
+        <h2>Audio library <span id="audioMode"></span></h2>
+        <p class="dim" style="font-size:.8rem; margin:0 0 12px">Reels are cut + previewed against these tracks; the download ships silent with an instruction naming the sound. Upload rights-cleared tracks, or sync trending from Instagram.</p>
+        <form id="audioForm" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap:8px; margin-bottom:12px; align-items:end">
+          <label style="font-size:.7rem; color:var(--text-3)">Track file (mp3)<input class="input" type="file" id="audioFile" accept="audio/*" required></label>
+          <label style="font-size:.7rem; color:var(--text-3)">Title<input class="input" name="title" placeholder="Golden Hour" required></label>
+          <label style="font-size:.7rem; color:var(--text-3)">Artist<input class="input" name="artist" placeholder="optional"></label>
+          <label style="font-size:.7rem; color:var(--text-3)">Vibe tags<input class="input" name="vibe" placeholder="upbeat, summer"></label>
+          <label style="font-size:.7rem; color:var(--text-3)">Source
+            <select class="input" name="source"><option value="operator_upload">operator_upload</option><option value="trending_open">trending_open</option><option value="trending_ig">trending_ig</option></select></label>
+          <label style="font-size:.7rem; color:var(--text-3)">Find-it URL<input class="input" name="source_url" placeholder="IG audio / track link"></label>
+          <button class="btn btn-primary" type="submit" id="audioBtn" style="height:42px">Upload</button>
+          <button class="btn" type="button" id="syncBtn" style="height:42px">Sync IG trending</button>
+        </form>
+        <div id="audioMsg" class="dim" style="font-size:.82rem; min-height:1em; margin-bottom:8px"></div>
+        <div id="audioPanel"><div class="empty">loading…</div></div>
+      </div>
+    </section>
 
-    <div class="card card-pad panel">
-      <h2>Audio library <span id="audioMode"></span></h2>
-      <p class="dim" style="font-size:.8rem; margin:0 0 12px">Reels are cut + previewed against these tracks; the download ships silent with an instruction naming the sound. Upload rights-cleared tracks, or sync trending from Instagram.</p>
-      <form id="audioForm" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap:8px; margin-bottom:12px; align-items:end">
-        <label style="font-size:.7rem; color:var(--text-3)">Track file (mp3)<input class="input" type="file" id="audioFile" accept="audio/*" required></label>
-        <label style="font-size:.7rem; color:var(--text-3)">Title<input class="input" name="title" placeholder="Golden Hour" required></label>
-        <label style="font-size:.7rem; color:var(--text-3)">Artist<input class="input" name="artist" placeholder="optional"></label>
-        <label style="font-size:.7rem; color:var(--text-3)">Vibe tags<input class="input" name="vibe" placeholder="upbeat, summer"></label>
-        <label style="font-size:.7rem; color:var(--text-3)">Source
-          <select class="input" name="source"><option value="operator_upload">operator_upload</option><option value="trending_open">trending_open</option><option value="trending_ig">trending_ig</option></select></label>
-        <label style="font-size:.7rem; color:var(--text-3)">Find-it URL<input class="input" name="source_url" placeholder="IG audio / track link"></label>
-        <button class="btn btn-primary" type="submit" id="audioBtn" style="height:42px">Upload</button>
-        <button class="btn" type="button" id="syncBtn" style="height:42px">Sync IG trending</button>
-      </form>
-      <div id="audioMsg" class="dim" style="font-size:.82rem; min-height:1em; margin-bottom:8px"></div>
-      <div id="audioPanel"><div class="empty">loading…</div></div>
-    </div>
+    <!-- ================= ANALYTICS ================= -->
+    <section data-sec-panel="analytics" hidden class="stack" style="gap:16px">
+      <div class="card card-pad panel">
+        <h2>Funnel — sessions per stage (7d)</h2>
+        <div id="funnelPanel"><div class="empty">loading…</div></div>
+      </div>
+      <div class="card card-pad panel">
+        <h2>User journey — events (24h)</h2>
+        <div id="eventsPanel"><div class="empty">loading…</div></div>
+      </div>
+    </section>
 
-    <div class="card card-pad panel">
-      <h2>Funnel — sessions per stage (7d)</h2>
-      <div id="funnelPanel"><div class="empty">loading…</div></div>
-    </div>
-
-    <div class="card card-pad panel">
-      <h2>User journey — events (24h)</h2>
-      <div id="eventsPanel"><div class="empty">loading…</div></div>
-    </div>
-
-    <div class="card card-pad panel">
-      <h2>Build phases</h2>
-      <ul class="phases" style="margin:0; padding-left:18px">
-        <li class="done">0 · Foundation — auth, gate, jobs queue, events, LLM boundary, storage</li>
-        <li class="now">1 · Agent-Scraper — taxonomy tree, escalation ladder, needs-apify flags</li>
-        <li>2 · Funnel — value prop, pricing, OAuth, Stripe, agent-email skeleton</li>
-        <li>3 · Script-gen — calendar, campaigns, 6 phantoms, briefs</li>
-        <li>4 · Media engine — Fal (nano-banana / seedance), shot library, webhooks</li>
-        <li>5 · Edit layer — beat-cut, Remotion graphics, post composer</li>
-        <li>6 · QC — flags → regen (max 3), learnings loop, coverage</li>
-        <li>7 · Deploy + tracker — Ayrshare, month-end report → learnings</li>
-        <li>8 · Local claude_code mode sync, promote-to-prod, journey dashboards</li>
-      </ul>
-    </div>
+    <!-- ================= SYSTEM ================= -->
+    <section data-sec-panel="system" hidden class="stack" style="gap:16px">
+      <div class="card card-pad panel">
+        <h2>System <span id="modeBadges"></span></h2>
+        <div id="statusLine" class="dim mono" style="font-size:.8rem">loading…</div>
+      </div>
+      <div class="card card-pad panel">
+        <h2>Build phases</h2>
+        <ul class="phases" style="margin:0; padding-left:18px">
+          <li class="done">0 · Foundation — auth, gate, jobs queue, events, LLM boundary, storage</li>
+          <li class="now">1 · Agent-Scraper — taxonomy tree, escalation ladder, needs-apify flags</li>
+          <li>2 · Funnel — value prop, pricing, OAuth, Stripe, agent-email skeleton</li>
+          <li>3 · Script-gen — calendar, campaigns, 6 phantoms, briefs</li>
+          <li>4 · Media engine — Fal (nano-banana / seedance), shot library, webhooks</li>
+          <li>5 · Edit layer — beat-cut, Remotion graphics, post composer</li>
+          <li>6 · QC — flags → regen (max 3), learnings loop, coverage</li>
+          <li>7 · Deploy + tracker — Ayrshare, month-end report → learnings</li>
+          <li>8 · Local claude_code mode sync, promote-to-prod, journey dashboards</li>
+        </ul>
+      </div>
+    </section>
 
   </div>
 </main>
@@ -128,13 +343,43 @@ async function j(url, opts) {
   return r.json();
 }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function ic(name, size) { return (window.Phantom && Phantom.icon) ? Phantom.icon(name, size || 14) : ''; }
 function table(headers, rows) {
   if (!rows.length) return '<div class="empty">nothing yet</div>';
   return '<div style="overflow-x:auto"><table><thead><tr>' + headers.map((h) => '<th>' + esc(h) + '</th>').join('')
     + '</tr></thead><tbody>' + rows.map((r) => '<tr>' + r.map((c) => '<td class="num">' + esc(c) + '</td>').join('') + '</tr>').join('')
     + '</tbody></table></div>';
 }
+function fmtAgo(ts) {
+  if (!ts) return '—';
+  const s = Math.max(0, Math.floor(Date.now() / 1000) - ts);
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+}
 
+// ── section tabs ──────────────────────────────────────────────────────────────
+function showSection(name) {
+  const secs = Array.from(document.querySelectorAll('[data-sec-panel]'));
+  if (!secs.some((s) => s.dataset.secPanel === name)) name = 'sandbox';
+  secs.forEach((s) => { s.hidden = (s.dataset.secPanel !== name); });
+  document.querySelectorAll('.sec-tab').forEach((t) => t.classList.toggle('active', t.dataset.sec === name));
+}
+document.querySelectorAll('.sec-tab').forEach((t) => t.addEventListener('click', () => {
+  showSection(t.dataset.sec);
+  try { history.replaceState(null, '', '#' + t.dataset.sec); } catch (e) {}
+}));
+
+// ── shared state ──────────────────────────────────────────────────────────────
+let selected = null;      // selected intake id
+let pollUntil = 0;        // keep fast-polling the runner until this ts (ms)
+let runnerActive = false; // scrape pending or something rendering
+let runnerBusy = false;   // guard against overlapping loads
+let lastRunnerId = null;  // to seed generate-N inputs once per intake
+let lastJobs = null;      // latest global jobs summary (for the runner queue strip)
+
+// ── global refresh (status / jobs / spend / intakes / funnel / events) ────────
 async function refresh() {
   try {
     const s = await j('/api/admin/status');
@@ -147,6 +392,7 @@ async function refresh() {
       'v' + s.version + ' · up ' + Math.floor(s.uptime_sec / 60) + 'm · models: ' + Object.values(s.llm_models).join(' / ');
 
     const jb = await j('/api/admin/jobs/summary');
+    lastJobs = jb.jobs;
     document.getElementById('jobsPanel').innerHTML =
       table(['kind', 'status', 'count'], jb.jobs.map((r) => [r.kind, r.status, r.n]));
 
@@ -155,27 +401,7 @@ async function refresh() {
       table(['provider', 'calls', 'usd (est)'], c.totals.map((r) => [r.provider, r.calls, '$' + r.usd]));
 
     const ik = await j('/api/admin/intakes');
-    document.getElementById('intakesPanel').innerHTML = !ik.intakes.length
-      ? '<div class="empty">no scrapes yet — run one above</div>'
-      : ik.intakes.map((i) => {
-          const chips = i.sources.map((s) =>
-            '<span class="chip ' + esc(s.status) + '" title="' + esc(s.note || '') + '">' + esc(s.source) + ': ' + esc(s.status) + '</span>').join('');
-          const flags = i.flags ? JSON.parse(i.flags) : [];
-          const payChip = i.payment_status === 'unpaid'
-            ? '<button class="btn" style="height:26px; font-size:.7rem; padding:0 10px" onclick="overrideIntake(\'' + esc(i.id) + '\')">Override → paid</button>'
-            : '<span class="chip scraped">' + esc(i.payment_status) + (i.plan ? ' · ' + esc(i.plan) : '') + '</span>';
-          return '<div class="intake-row">'
-            + '<div class="top"><strong>' + esc(i.business_name) + '</strong>'
-            + '<span class="dim mono" style="font-size:.72rem">' + esc(i.tenant_slug) + ' · ' + esc(i.status)
-            + (i.llm_calls ? ' · ' + i.llm_calls + ' llm calls' : '')
-            + (i.value_prop ? ' · <a href="/app/proposal.html?intake=' + esc(i.id) + '" target="_blank">proposal</a>' : '')
-            + (i.payment_status !== 'unpaid' ? ' · <a href="/app/production.html?intake=' + esc(i.id) + '">production</a> · <a href="/app/gallery.html?intake=' + esc(i.id) + '" target="_blank">gallery</a>' : '')
-            + (i.scrape_key ? ' · <a href="/api/admin/intake/' + esc(i.id) + '" target="_blank">scrape.json</a>' : '')
-            + '</span></div>'
-            + '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">' + (chips || '<span class="dim" style="font-size:.78rem">queued…</span>') + payChip + '</div>'
-            + (flags.length ? '<div class="dim" style="font-size:.74rem; margin-top:4px">⚑ ' + flags.map(esc).join(' · ') + '</div>' : '')
-            + '</div>';
-        }).join('');
+    renderIntakes(ik.intakes);
 
     const fu = await j('/api/admin/funnel?hours=168');
     const maxS = Math.max(1, ...fu.funnel.map((s) => s.sessions));
@@ -197,6 +423,243 @@ async function refresh() {
   } catch (e) { console.error(e); }
 }
 
+// ── intake picker ─────────────────────────────────────────────────────────────
+function renderIntakes(list) {
+  const host = document.getElementById('intakesPanel');
+  if (!list || !list.length) { host.innerHTML = '<div class="empty">no scrapes yet — run one above</div>'; return; }
+  host.innerHTML = list.map((i) => {
+    const paid = i.payment_status && i.payment_status !== 'unpaid';
+    const payLabel = paid ? (i.plan ? esc(i.plan) : 'paid') : 'unpaid';
+    const flags = (() => { try { return i.flags ? JSON.parse(i.flags) : []; } catch (e) { return []; } })();
+    const srcChips = (i.sources || []).map((s) =>
+      '<span class="chip ' + esc(s.status) + '" title="' + esc(s.note || '') + '">' + esc(s.source) + '</span>').join('');
+    return '<button type="button" class="pick' + (i.id === selected ? ' selected' : '') + '" data-id="' + esc(i.id) + '">'
+      + '<div class="top"><span class="name">' + esc(i.business_name) + '</span>'
+      + '<span class="badge ' + (paid ? 'ok' : 'warn') + '">' + payLabel + '</span></div>'
+      + '<div class="meta">' + esc(i.tenant_slug) + ' · ' + esc(i.status) + ' · ' + fmtAgo(i.created_at)
+      + (i.value_prop ? ' · proposal' : '') + (i.llm_calls ? ' · ' + i.llm_calls + ' llm' : '') + '</div>'
+      + '<div class="chips">' + (srcChips || '<span class="dim" style="font-size:.72rem">queued…</span>')
+      + (flags.length ? '<span class="chip warn" title="' + esc(flags.join(' · ')) + '">' + flags.length + ' flag' + (flags.length === 1 ? '' : 's') + '</span>' : '')
+      + '</div></button>';
+  }).join('');
+  host.querySelectorAll('.pick').forEach((b) => b.addEventListener('click', () => selectIntake(b.dataset.id)));
+}
+
+function selectIntake(id) {
+  selected = id;
+  lastRunnerId = null; // reseed generate-N inputs for the new intake
+  document.querySelectorAll('#intakesPanel .pick').forEach((b) => b.classList.toggle('selected', b.dataset.id === id));
+  document.getElementById('sbEmpty').hidden = true;
+  document.getElementById('sbBody').hidden = false;
+  ['sbOverrideMsg', 'sbScriptMsg', 'sbGenMsg'].forEach((k) => { const el = document.getElementById(k); el.textContent = ''; el.classList.remove('err'); });
+  pollUntil = Date.now() + 8000;
+  loadRunner();
+}
+
+// ── runner ────────────────────────────────────────────────────────────────────
+async function loadRunner() {
+  const id = selected;
+  if (!id || runnerBusy) return;
+  runnerBusy = true;
+  try {
+    const [meta, prod] = await Promise.all([
+      j('/api/admin/intake/' + id),
+      j('/api/admin/intake/' + id + '/production'),
+    ]);
+    let est = null;
+    try { est = (await j('/api/admin/intake/' + id + '/media-estimate')).estimate; } catch (e) { est = null; }
+    if (selected !== id) return; // selection changed mid-flight
+    renderRunner(meta, prod, est);
+  } catch (e) { console.error(e); } finally { runnerBusy = false; }
+}
+
+function pillCount(kind, n, cls) {
+  return '<span class="pill-c ' + (cls || '') + '"><b>' + n + '</b> ' + esc(kind) + '</span>';
+}
+
+function renderRunner(meta, prod, est) {
+  const it = meta.intake || {};
+  const id = it.id;
+  const pieces = prod.pieces || [];
+  const phantoms = prod.phantoms || [];
+
+  document.getElementById('sbTitle').textContent = it.business_name || '';
+  document.getElementById('sbSub').textContent =
+    (it.tenant_slug || '') + ' · ' + (it.status || '') + ' · ' + (it.payment_status || 'unpaid') + (it.plan ? ' · ' + it.plan : '');
+
+  // open links
+  const links = [
+    ['Production room', '/app/production.html?intake=' + id],
+    ['Gallery', '/app/gallery.html?intake=' + id],
+    ['Proposal', '/app/proposal.html?intake=' + id],
+    ['Plans (view as customer)', '/app/plans.html?intake=' + id],
+  ];
+  let linksHtml = links.map((l) =>
+    '<a class="op-link" href="' + l[1] + '" target="_blank" rel="noopener">' + esc(l[0]) + ' ' + ic('arrow-right', 13) + '</a>').join('');
+  if (meta.scrape_url) linksHtml += '<a class="op-link" href="' + esc(meta.scrape_url) + '" target="_blank" rel="noopener">scrape.json ' + ic('arrow-right', 13) + '</a>';
+  document.getElementById('sbOpenLinks').innerHTML = linksHtml;
+
+  // stage strip
+  const scraped = !!it.scrape_key;
+  const proposal = !!it.value_prop;
+  const paid = it.payment_status && it.payment_status !== 'unpaid';
+  const scripted = pieces.length > 0;
+  const media = phantoms.some((p) => p.status === 'ready')
+    || pieces.some((p) => ['rendering', 'ready', 'approved'].includes(p.status))
+    || pieces.some((p) => (p.assets || []).length > 0);
+  const edited = pieces.some((p) => (p.assets || []).some((a) => a.kind === 'reel' || a.kind === 'post_final'));
+  const stages = [['scraped', scraped], ['proposal', proposal], ['paid', paid], ['scripted', scripted], ['media', media], ['edited', edited]];
+  const firstFalse = stages.findIndex((s) => !s[1]);
+  document.getElementById('sbStrip').innerHTML = stages.map((s, idx) => {
+    const cls = s[1] ? 'done' : (idx === firstFalse ? 'now' : 'todo');
+    return '<span class="stage ' + cls + '"><span class="d"></span>' + s[0] + '</span>';
+  }).join('');
+
+  // override control
+  const ovCtl = document.getElementById('sbCtlOverride');
+  const ovBtn = document.getElementById('sbOverrideBtn');
+  const ovSel = document.getElementById('sbPlanSel');
+  if (paid) {
+    ovCtl.classList.remove('locked'); ovBtn.disabled = true; ovSel.disabled = true;
+    if (!document.getElementById('sbOverrideMsg').textContent) document.getElementById('sbOverrideMsg').textContent = 'already ' + it.payment_status + (it.plan ? ' · ' + it.plan : '');
+  } else {
+    ovCtl.classList.remove('locked'); ovBtn.disabled = false; ovSel.disabled = false;
+  }
+
+  // script-gen control (server requires scrape_key)
+  document.getElementById('sbCtlScript').classList.toggle('locked', !scraped);
+
+  // generate-media control + estimate
+  const genLocked = !scripted;
+  document.getElementById('sbCtlGen').classList.toggle('locked', genLocked);
+  const estEl = document.getElementById('sbEstimate');
+  const nReels = document.getElementById('sbGenReelsN');
+  const nPosts = document.getElementById('sbGenPostsN');
+  if (est) {
+    estEl.innerHTML =
+      'Pending: <b>' + est.phantoms + '</b> phantoms · <b>' + est.reels + '</b> reels · <b>' + est.posts + '</b> posts<br>'
+      + 'Cost preview: <b>' + est.images + '</b> images + <b>' + est.video_shots + '</b> video-shots (' + est.video_seconds + 's)'
+      + (est.reused_shots ? ' · ' + est.reused_shots + ' reused' : '')
+      + ' ≈ <b>$' + est.est_usd + '</b> '
+      + (est.mock_mode ? '<span class="badge ok">mock $0</span>' : '<span class="badge warn">REAL $</span>');
+    if (lastRunnerId !== id) { nReels.value = est.reels; nPosts.value = est.posts; }
+    nReels.max = est.reels; nPosts.max = est.posts;
+    document.getElementById('sbGenPhantoms').disabled = est.phantoms === 0;
+    document.getElementById('sbGenReels').disabled = est.reels === 0;
+    document.getElementById('sbGenPosts').disabled = est.posts === 0;
+    document.getElementById('sbGenAll').disabled = (est.phantoms + est.reels + est.posts) === 0;
+    document.getElementById('sbCost').textContent = est.mock_mode
+      ? 'MOCK_MEDIA_GEN=1 — placeholder bytes, $0 spend. The estimate is the guardrail.'
+      : 'MOCK_MEDIA_GEN=0 — media generation spends real Fal credits (~$' + est.est_usd + ' for everything pending). The estimate above is the guardrail.';
+    document.getElementById('sbCost').style.color = est.mock_mode ? '' : 'var(--warning)';
+  } else {
+    estEl.textContent = genLocked ? 'Run script-gen first to see the estimate.' : '—';
+    document.getElementById('sbCost').textContent = '';
+  }
+  lastRunnerId = id;
+
+  // live progress counts
+  const byStatus = {};
+  pieces.forEach((p) => { byStatus[p.status] = (byStatus[p.status] || 0) + 1; });
+  const byKind = {};
+  phantoms.forEach((ph) => { if (ph.asset_id) byKind.phantom = (byKind.phantom || 0) + 1; });
+  pieces.forEach((p) => (p.assets || []).forEach((a) => { byKind[a.kind] = (byKind[a.kind] || 0) + 1; }));
+  const statusHtml = Object.keys(byStatus).length
+    ? Object.keys(byStatus).sort().map((k) => pillCount(k, byStatus[k], k)).join('')
+    : '<span class="dim" style="font-size:.78rem">none yet</span>';
+  const kindHtml = Object.keys(byKind).length
+    ? Object.keys(byKind).sort().map((k) => pillCount(k, byKind[k])).join('')
+    : '<span class="dim" style="font-size:.78rem">none yet</span>';
+  document.getElementById('sbCounts').innerHTML =
+    '<div class="cnt-grp"><span class="cnt-lbl">pieces</span>' + statusHtml + '</div>'
+    + '<div class="cnt-grp"><span class="cnt-lbl">assets</span>' + kindHtml + '</div>';
+
+  // global queue snapshot (jobs/summary is not per-tenant; show the global queue)
+  if (lastJobs) {
+    const byS = {};
+    lastJobs.forEach((r) => { byS[r.status] = (byS[r.status] || 0) + r.n; });
+    document.getElementById('sbQueue').textContent = 'queue (global): '
+      + (Object.keys(byS).length ? Object.keys(byS).map((k) => k + ' ' + byS[k]).join(' · ') : 'idle');
+  }
+
+  // fast-poll while scrape is in-flight or anything is rendering
+  const term = ['failed', 'not_found', 'blocked_needs_apify'];
+  const srcs = meta.sources || [];
+  const scrapeActive = !scraped && (srcs.length === 0 || srcs.some((s) => !term.includes(s.status)));
+  const rendering = pieces.some((p) => p.status === 'rendering') || phantoms.some((p) => p.status === 'rendering');
+  runnerActive = scrapeActive || rendering;
+
+  if (window.Phantom && Phantom.mountIcons) Phantom.mountIcons(document.getElementById('sbBody'));
+}
+
+// runner actions
+async function doOverride() {
+  if (!selected) return;
+  const msg = document.getElementById('sbOverrideMsg');
+  const plan = document.getElementById('sbPlanSel').value;
+  msg.classList.remove('err'); msg.textContent = 'overriding…';
+  try {
+    const r = await j('/api/admin/intake/' + selected + '/override', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan }),
+    });
+    if (!r.success) throw new Error(r.error);
+    msg.textContent = 'marked ' + (r.intake ? r.intake.payment_status : 'paid') + ' (' + plan + ') — script-gen auto-enqueued';
+    pollUntil = Date.now() + 120000; loadRunner(); refresh();
+  } catch (e) { msg.classList.add('err'); msg.textContent = 'error: ' + e.message; }
+}
+
+async function doScriptgen() {
+  if (!selected) return;
+  const msg = document.getElementById('sbScriptMsg');
+  const reels = parseInt(document.getElementById('sbReels').value, 10);
+  const posts = parseInt(document.getElementById('sbPosts').value, 10);
+  const regenerate = document.getElementById('sbRegen').checked;
+  const body = { regenerate };
+  if (Number.isInteger(reels) && reels > 0) body.reels = reels;
+  if (Number.isInteger(posts) && posts > 0) body.posts = posts;
+  msg.classList.remove('err'); msg.textContent = 'queuing script-gen…';
+  try {
+    const r = await j('/api/admin/intake/' + selected + '/scriptgen', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!r.success) throw new Error(r.error);
+    msg.textContent = 'script-gen queued · job ' + r.job_id;
+    pollUntil = Date.now() + 120000; loadRunner();
+  } catch (e) { msg.classList.add('err'); msg.textContent = 'error: ' + e.message; }
+}
+
+async function doGenerate(stage) {
+  if (!selected) return;
+  const msg = document.getElementById('sbGenMsg');
+  const clampInt = (v) => { const n = parseInt(v, 10); return Number.isInteger(n) && n > 0 ? n : 0; };
+  let body;
+  if (stage === 'phantoms') body = { phantoms: true, reels: 0, posts: 0 };
+  else if (stage === 'reels') body = { phantoms: false, reels: clampInt(document.getElementById('sbGenReelsN').value), posts: 0 };
+  else if (stage === 'posts') body = { phantoms: false, reels: 0, posts: clampInt(document.getElementById('sbGenPostsN').value) };
+  else body = { phantoms: true, reels: 'all', posts: 'all' };
+  msg.classList.remove('err'); msg.textContent = 'kicking…';
+  try {
+    const r = await j('/api/admin/intake/' + selected + '/generate-media', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!r.success) throw new Error(r.error);
+    const k = r.kicked || {};
+    msg.textContent = 'kicked: ' + (k.phantoms || 0) + ' phantoms · ' + (k.reels || 0) + ' reels · ' + (k.posts || 0) + ' posts';
+    pollUntil = Date.now() + 120000; loadRunner(); refresh();
+  } catch (e) { msg.classList.add('err'); msg.textContent = 'error: ' + e.message; }
+}
+
+document.getElementById('sbOverrideBtn').addEventListener('click', doOverride);
+document.getElementById('sbScriptBtn').addEventListener('click', doScriptgen);
+document.getElementById('sbGenPhantoms').addEventListener('click', () => doGenerate('phantoms'));
+document.getElementById('sbGenReels').addEventListener('click', () => doGenerate('reels'));
+document.getElementById('sbGenPosts').addEventListener('click', () => doGenerate('posts'));
+document.getElementById('sbGenAll').addEventListener('click', () => doGenerate('all'));
+
+// fast runner poll (~3s) while anything is running
+setInterval(() => { if (selected && (runnerActive || Date.now() < pollUntil)) loadRunner(); }, 3000);
+
+// ── audio library (verbatim — verified panel) ─────────────────────────────────
 async function loadAudio() {
   try {
     const a = await j('/api/admin/audio');
@@ -243,14 +706,7 @@ document.getElementById('syncBtn').addEventListener('click', async () => {
   } catch (err) { msg.textContent = 'error: ' + err.message; }
 });
 
-window.overrideIntake = async (id) => {
-  if (!confirm('Mark this intake paid via admin override? (skips OAuth + Stripe; unlocks generation)')) return;
-  const r = await j('/api/admin/intake/' + id + '/override', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
-  });
-  if (!r.success) alert(r.error); else refresh();
-};
-
+// ── new scrape (admin intake) ─────────────────────────────────────────────────
 document.getElementById('intakeForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('intakeBtn');
@@ -265,7 +721,9 @@ document.getElementById('intakeForm').addEventListener('submit', async (e) => {
     if (!r.success) throw new Error(r.error);
     msg.textContent = 'queued — tenant ' + r.tenant.slug;
     e.target.reset();
-    setTimeout(refresh, 800);
+    pollUntil = Date.now() + 120000;
+    if (r.intake && r.intake.id) selectIntake(r.intake.id);
+    refresh();
   } catch (err) { msg.textContent = 'error: ' + err.message; }
   btn.disabled = false;
 });
@@ -275,17 +733,12 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   location.href = '/app/admin-login.html';
 });
 
+// ── boot ──────────────────────────────────────────────────────────────────────
+showSection((location.hash || '').replace('#', '') || 'sandbox');
 refresh();
 loadAudio();
-setInterval(refresh, 10_000);
-
-fetch('/version').then((r) => r.json()).then((d) => {
-  if (!d || !d.version) return;
-  const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;bottom:8px;left:50%;transform:translateX(-50%);z-index:50;font:500 11px/1 ui-monospace,Menlo,monospace;color:rgba(255,255,255,.32);letter-spacing:.04em;pointer-events:none';
-  el.textContent = 'v' + d.version + (d.sha ? ' · ' + String(d.sha).slice(0, 7) : '');
-  document.body.appendChild(el);
-}).catch(() => {});
+setInterval(refresh, 10000);
+if (window.Phantom && Phantom.mountIcons) Phantom.mountIcons();
 </script>
 
 </body>

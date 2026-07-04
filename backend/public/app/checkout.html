@@ -7,28 +7,88 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="assets/phantom-logo.svg">
 <link rel="stylesheet" href="assets/phantom.css">
+<script src="assets/phantom.js"></script>
 <script src="assets/track.js"></script>
+
+<style>
+  body { background:var(--bg); overflow-x:hidden; }
+  body::before {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(900px 620px at 50% -8%, rgba(124,92,255,.20), transparent 60%),
+      radial-gradient(720px 520px at 90% 110%, rgba(54,226,196,.07), transparent 65%),
+      radial-gradient(560px 360px at 8% 92%, rgba(124,92,255,.08), transparent 65%);
+  }
+
+  /* ---- min nav (shared pattern, ported from intake.html) ---- */
+  .min-nav { position:sticky; top:0; z-index:10; height:72px;
+    background:rgba(10,11,16,.55); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
+  .min-nav .inner { max-width:1080px; margin-inline:auto; padding:0 24px;
+    height:100%; display:flex; align-items:center; gap:14px; }
+  .min-brand { display:inline-flex; align-items:center; gap:10px;
+    font-family:var(--display); font-weight:700; font-size:1.05rem; letter-spacing:-.02em; color:var(--text); }
+  .min-brand img { width:26px; height:26px; filter:drop-shadow(0 4px 12px var(--accent-glow)); }
+  .min-spacer { flex:1; }
+
+  .stage { position:relative; z-index:1; min-height:calc(100dvh - 72px); display:grid; place-items:center; padding:24px; }
+
+  .checkout-card {
+    position:relative; width:100%; max-width:452px;
+    padding: clamp(32px, 5vw, 44px) clamp(26px, 4.5vw, 40px);
+    border-radius: 26px;
+    background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(10,11,16,.55));
+    border: 1px solid rgba(255,255,255,.10);
+    box-shadow: 0 40px 90px -32px rgba(0,0,0,.72), 0 16px 40px -20px rgba(124,92,255,.22), inset 0 1px 0 rgba(255,255,255,.07);
+    text-align:center;
+  }
+  .checkout-card .mark-img { width:44px; height:44px; margin:0 auto 16px; filter:drop-shadow(0 6px 18px var(--accent-glow)); }
+  .checkout-card h1 { font-family:var(--display); font-weight:600; letter-spacing:-.02em; color:#fff;
+    font-size:1.4rem; margin:0 0 8px; }
+  .checkout-card .sub { color:var(--text-2); font-size:.96rem; margin:0; line-height:1.5; }
+
+  .spinner { width:38px; height:38px; margin:0 auto 20px; border-radius:50%;
+    background:conic-gradient(from 0deg, transparent, var(--accent-2), transparent 70%);
+    animation:spin 1.2s linear infinite; position:relative; }
+  .spinner::before { content:""; position:absolute; inset:5px; border-radius:50%; background:var(--bg); }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation:none; } }
+
+  .op-divider { display:flex; align-items:center; gap:10px; margin: 22px 0 16px;
+    color:var(--text-3); font-size:.66rem; letter-spacing:.22em; text-transform:uppercase; font-family:var(--mono); }
+  .op-divider span.rule { flex:1; height:1px; background:var(--hairline-2); }
+
+  #operatorCard { text-align:left; }
+  #operatorCard .note { font-size:.78rem; color:var(--text-3); margin-top:12px; line-height:1.5; }
+  #opMsg { font-size:.82rem; min-height:1.2em; margin-top:10px; color:var(--text-3); }
+</style>
 </head>
 <body>
 
-<main class="section" style="min-height:100dvh; display:grid; place-items:center; padding:20px">
-  <div class="card card-pad" style="max-width:440px; width:100%; padding:32px; text-align:center">
-    <img class="mark" src="assets/phantom-logo.svg" alt="" style="width:40px; height:40px; margin-bottom:12px">
-    <h1 class="h3" style="font-size:1.3rem" id="title">Taking you to secure checkout…</h1>
-    <p class="muted" id="detail">Payments are handled by Stripe.</p>
+<header class="min-nav">
+  <div class="inner">
+    <a class="min-brand" href="index.html"><img src="assets/phantom-logo.svg" alt=""> Phantom</a>
+    <span class="min-spacer"></span>
+    <a class="btn btn-quiet btn-sm" id="backToPlans" href="plans.html">Back to plans</a>
+  </div>
+</header>
+
+<main class="stage">
+  <div class="checkout-card">
+    <div class="spinner" id="spinner" aria-hidden="true"></div>
+    <img class="mark-img" src="assets/phantom-logo.svg" alt="" style="display:none" id="markImg">
+    <h1 id="title">Taking you to secure checkout…</h1>
+    <p class="sub" id="detail">Payments are handled by Stripe.</p>
 
     <!-- Operator card: shown instead of the auto-redirect when an admin session
          exists. Override = markIntakePaid(admin_override) — skips Stripe entirely. -->
-    <div id="operatorCard" style="display:none; margin-top:20px; text-align:left">
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; color:var(--text-3); font-size:.68rem; letter-spacing:.18em; text-transform:uppercase; font-family:var(--mono)">
-        <span style="flex:1; height:1px; background:var(--hairline-2)"></span>operator<span style="flex:1; height:1px; background:var(--hairline-2)"></span>
-      </div>
-      <button class="btn btn-primary btn-block" id="overrideBtn" style="height:48px">Override — mark paid &amp; continue</button>
-      <button class="btn btn-block" id="realPayBtn" style="height:44px; margin-top:10px">Proceed to real checkout</button>
-      <p class="dim" style="font-size:.74rem; margin-top:10px; margin-bottom:0">
+    <div id="operatorCard" style="display:none; margin-top:22px">
+      <div class="op-divider"><span class="rule"></span>operator<span class="rule"></span></div>
+      <button class="btn btn-primary btn-block" id="overrideBtn" style="height:50px">Override — mark paid &amp; continue</button>
+      <button class="btn btn-block" id="realPayBtn" style="height:46px; margin-top:10px">Proceed to real checkout</button>
+      <p class="note">
         Override unlocks the pipeline exactly like a paid customer (via admin_override) — no Stripe involved.
       </p>
-      <div id="opMsg" class="dim" style="font-size:.78rem; min-height:1.2em; margin-top:8px"></div>
+      <div id="opMsg"></div>
     </div>
   </div>
 </main>
@@ -38,6 +98,10 @@
   const intakeId = params.get('intake');
   const plan = params.get('plan');
   if (!intakeId) location.replace('index.html');
+
+  // Cosmetic-only: point the header's "back" link at the same intake context.
+  const backLink = document.getElementById('backToPlans');
+  if (backLink) backLink.href = 'plans.html' + (intakeId ? '?intake=' + encodeURIComponent(intakeId) : '');
 
   const successUrl = 'checkout-success.html?intake=' + encodeURIComponent(intakeId);
 
@@ -55,6 +119,7 @@
       if (!d.success) throw new Error(d.error || 'checkout failed');
       location.replace(d.url);
     } catch (err) {
+      document.getElementById('spinner').style.display = 'none';
       document.getElementById('title').textContent = 'Checkout hit a snag';
       document.getElementById('detail').textContent = err.message + ' — go back to plans and try again.';
       track('checkout.error', { error: String(err.message).slice(0, 120) });
@@ -91,6 +156,8 @@
     if (!isAdmin) { realCheckout(); return; }
 
     // Operator: pause the auto-redirect and offer the choice.
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('markImg').style.display = 'block';
     document.getElementById('title').textContent = 'Operator checkout';
     document.getElementById('detail').textContent = (plan || 'selected') + ' plan · intake ' + intakeId;
     document.getElementById('operatorCard').style.display = 'block';
