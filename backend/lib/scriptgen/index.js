@@ -71,25 +71,33 @@ const mockCampaigns = (n, moments) => JSON.stringify({
     products: ['Mock Tee'],
   })),
 });
-const mockBriefs = (slots) => JSON.stringify({
-  briefs: slots.map((s) => s.kind === 'reel' ? {
-    kind: 'reel',
-    hook: 'Stop scrolling — this changes your mornings.',
-    script_beats: ['hook on camera', 'product in hand', 'payoff + CTA'],
-    frame_prompts: ['Frame 1: phantom holds product, eye contact, 9:16', 'Frame 2: product close-up in use, 9:16'],
-    video_description: 'Handheld selfie energy, quick push-in on product, natural light',
-    audio_vibe: 'upbeat summer pop',
-    graphics_notes: 'brand logo end-card, one animated stat overlay',
-    caption: 'The upgrade your feed asked for. #brand',
-    cta: 'Shop the drop',
-  } : {
-    kind: 'post',
-    post_prompt: 'Phantom with product, golden-hour street, candid UGC style, 4:5',
-    design_prompt: 'stat-card archetype, oversized number, brand palette',
-    caption: 'Numbers don\'t lie.',
-    cta: 'Link in bio',
-  }),
-});
+// Reel camera/blocking archetypes (mirrors lib/media/render.js SHOT_STYLES) — the
+// brief LLM picks one per reel for real runs; mock cycles through all three so a
+// $0 run still exercises every style.
+const SHOT_STYLE_CYCLE = ['ugc_handheld', 'cinematic_lifestyle', 'bold_studio'];
+const mockBriefs = (slots) => {
+  let reelIdx = 0;
+  return JSON.stringify({
+    briefs: slots.map((s) => s.kind === 'reel' ? {
+      kind: 'reel',
+      hook: 'Stop scrolling — this changes your mornings.',
+      script_beats: ['hook on camera', 'product in hand', 'payoff + CTA'],
+      shot_style: SHOT_STYLE_CYCLE[reelIdx++ % SHOT_STYLE_CYCLE.length],
+      frame_prompts: ['Frame 1: phantom holds product, eye contact, 9:16', 'Frame 2: product close-up in use, 9:16'],
+      video_description: 'Handheld selfie energy, quick push-in on product, natural light',
+      audio_vibe: 'upbeat summer pop',
+      graphics_notes: 'brand logo end-card, one animated stat overlay',
+      caption: 'The upgrade your feed asked for. #brand',
+      cta: 'Shop the drop',
+    } : {
+      kind: 'post',
+      post_prompt: 'Phantom with product, golden-hour street, candid UGC style, 4:5',
+      design_prompt: 'stat-card archetype, oversized number, brand palette',
+      caption: 'Numbers don\'t lie.',
+      cta: 'Link in bio',
+    }),
+  });
+};
 
 // ── main ──────────────────────────────────────────────────────────────────────
 export async function runScriptGen({ intakeId, reels = null, posts = null, regenerate = false }) {
@@ -161,6 +169,7 @@ appearance = a LOCKED visual description reused verbatim for every image generat
     task: 'synthesis',
     system: 'You are Phantom\'s campaign strategist. Ideas must be grounded in the brand data and the listed real-world moments — never invent events.',
     prompt: `Build exactly ${targetN} campaign ideas for ${brand.name}. Each campaign = a cluster of reels + posts sharing ONE visual design. Mix types: product-led, plus moment-riding ones ONLY from the real moments below (weather/season, sports, holidays, business events). ${targetN >= 5 ? 'At least half product-led.' : ''}
+Give each campaign a distinct persuasion ANGLE — rotate across proven types rather than repeating one: problem-solution, social proof, authority/expert, before-after transformation, pattern-interrupt hook, comparison, day-in-the-life routine. Name the angle at the start of "concept" (e.g. "Social proof: ...").
 ${learnings}
 Brand: ${JSON.stringify({ about: brand.about, voice: brand.voice, products: brand.products, vertical: brand.vertical })}
 Real moments right now: ${JSON.stringify(moments)}
@@ -202,7 +211,7 @@ visual_design = the shared look (setting, palette, lighting, mood) every piece i
     const slotDesc = slots.map((s, i) => `${i + 1}. ${s.kind}${s.pillar ? ` (pillar: ${s.pillar})` : ''} — phantom ${s.phantom.name} (${s.phantom.vibe || 'neutral'})`).join('\n');
     const briefRaw = await spend({
       task: 'extraction',
-      system: 'You write production briefs for AI-generated UGC. Every image/video prompt must describe the phantom as a synthetic AI creator consistent with their locked appearance. Output ONLY JSON.',
+      system: 'You write production briefs for AI-generated UGC. Every image/video prompt must describe the phantom as a synthetic AI creator consistent with their locked appearance. The image/video generation prompts (frame_prompts, video_description, post_prompt) must NEVER describe on-screen text, captions, subtitles, or graphic overlays — those are composited in a separate post-production stage; graphics_notes is instructions for THAT later stage, not for the generation prompt itself. Output ONLY JSON.',
       prompt: `Write one production brief per slot for this campaign. All pieces share the campaign's visual design.
 ${learnings}
 Campaign: ${JSON.stringify({ title: campaign.title, type: campaign.type, concept: campaign.concept, visual_design: campaign.visual_design, moment: campaign.moment, products: JSON.parse(campaign.product_refs || '[]') })}
@@ -211,8 +220,8 @@ Slots:
 ${slotDesc}
 
 Return ONLY JSON: { "briefs": [ ...one per slot, in order... ] }
-reel brief: { "kind":"reel", "hook": string, "script_beats": [string], "frame_prompts": [string] (1-3 MAX, vertical 9:16, phantom + product framing), "video_description": string (motion/camera for the video model), "audio_vibe": string (2-4 words for track matching), "graphics_notes": string (overlay/end-card instruction), "caption": string, "cta": string }
-post brief: { "kind":"post", "post_prompt": string (image prompt: phantom + product, 4:5), "design_prompt": string (layout archetype + brand palette direction), "caption": string, "cta": string }`,
+reel brief: { "kind":"reel", "hook": string, "script_beats": [string], "shot_style": "ugc_handheld"|"cinematic_lifestyle"|"bold_studio" (pick ONE per reel based on campaign vibe — ugc_handheld: phone-shot selfie energy, direct eye contact; cinematic_lifestyle: smooth aspirational b-roll, phantom not looking at camera; bold_studio: solid-color backdrop, confident direct-to-camera), "frame_prompts": [string] (1-3 MAX, vertical 9:16, phantom + product framing, consistent with shot_style, no on-screen text), "video_description": string (motion/camera for the video model, consistent with shot_style, no on-screen text), "audio_vibe": string (2-4 words for track matching), "graphics_notes": string (overlay/end-card instruction for the separate post-production graphics stage), "caption": string, "cta": string }
+post brief: { "kind":"post", "post_prompt": string (image prompt: phantom + product, 4:5, no on-screen text), "design_prompt": string (layout archetype + brand palette direction), "caption": string, "cta": string }`,
       schema: { type: 'json', required: ['briefs'], shape: { briefs: 'array' } },
       mock: mockBriefs(slots),
     });

@@ -38,6 +38,24 @@ const VIDEO_RESOLUTION = () => process.env.FAL_VIDEO_RESOLUTION || '720p';
 const PRICE_IMAGE = () => parseFloat(process.env.FAL_PRICE_IMAGE_USD || '0.15');
 const PRICE_VIDEO_SEC = () => parseFloat(process.env.FAL_PRICE_VIDEO_SEC_USD || '0.3034');
 
+// Graphics/captions are a SEPARATE post-production stage (lib/edit/graphics.js —
+// chrome_overlay/remotion end-cards + accent overlays). The generation prompt must
+// never ask the image/video model to render its own on-screen text, or the two
+// layers collide (caught live: a QC reject cited an AI-rendered "end title" fighting
+// the real end-card). Appended to every post/reel Fal prompt below.
+const NO_ONSCREEN_TEXT = 'No on-screen text, captions, subtitles, logos rendered as typography, or end-card/title graphics of any kind — all overlays and end-cards are composited separately in post-production.';
+
+// Reel camera/blocking archetypes — scriptgen picks one into brief.shot_style
+// (fixed-format-vocabulary approach, same spirit as post-compose.js's design
+// ARCHETYPES) instead of leaving camera style fully freeform per reel. An
+// absent/unknown style falls back to the pre-existing generic default below.
+const SHOT_STYLES = {
+  ugc_handheld: 'Phone-shot selfie energy: slight handheld wobble, close framing, direct eye contact with the lens.',
+  cinematic_lifestyle: 'Cinematic handheld b-roll: smooth slow push-in, phantom absorbed in the moment, not looking at camera.',
+  bold_studio: 'Bold studio setup: solid-color or plain backdrop, direct-to-camera, confident energetic delivery.',
+};
+const shotStyleClause = (style) => (SHOT_STYLES[style] ? `${SHOT_STYLES[style]} ` : '');
+
 const MOCK_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 const MOCK_MP4 = Buffer.from('AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDE=', 'base64'); // stub bytes — pipeline plumbing only
 
@@ -136,7 +154,7 @@ const CONTINUATIONS = {
       slug: piece.tenant_slug,
       modelKey: 'video',
       input: {
-        prompt: `${brief.video_description || 'natural handheld UGC motion'}. Vertical 9:16.`,
+        prompt: `${shotStyleClause(brief.shot_style)}${brief.video_description || 'natural handheld UGC motion'}. Vertical 9:16. ${NO_ONSCREEN_TEXT}`,
         image_url: keyframeUrl,
         duration: String(VIDEO_SECONDS()), // seedance schema: string enum "4".."15", not int
         aspect_ratio: '9:16',
@@ -225,8 +243,21 @@ async function productRefUrls(piece) {
   const rows = mediaAssets.byRef('intake', piece.intake_id)
     .filter((a) => a.kind === 'product' && a.status === 'active')
     .slice(0, PRODUCT_REFS());
-  if (process.env.MOCK_MEDIA_GEN === '1') return rows.map(() => 'mock://product-ref');
-  return Promise.all(rows.map((a) => storage.fetchableUrl(piece.tenant_slug, a.r2_key, 3600)));
+  if (process.env.MOCK_MEDIA_GEN === '1') return rows.map(() => ({ url: 'mock://product-ref', adNotes: null }));
+  return Promise.all(rows.map(async (a) => ({
+    url: await storage.fetchableUrl(piece.tenant_slug, a.r2_key, 3600),
+    adNotes: JSON.parse(a.meta || '{}').ad_notes || null,
+  })));
+}
+
+// Each ref carries its vision-derived ad_notes when scrape-time analysis ran
+// (lib/scrape/runner.js analyzeProductImage) — null otherwise (mock mode, non-API
+// CLAUDE_MODE, or older pre-existing assets), in which case this falls back to the
+// generic instruction alone, same as before ad_notes existed.
+function productReferenceClause(productRefs) {
+  if (!productRefs.length) return '';
+  const notes = productRefs.map((p) => p.adNotes).filter(Boolean).join(' ');
+  return `. Reference image(s) of the actual product are attached — reproduce the real product faithfully (label, shape, colors).${notes ? ` ${notes}` : ''}`;
 }
 
 async function handleRenderPost({ pieceId }) {
@@ -235,14 +266,15 @@ async function handleRenderPost({ pieceId }) {
   if (piece.status === 'ready') return { already: true };
   const brief = JSON.parse(piece.brief);
   const { ph, url } = await phantomRefUrl(piece);
-  const productUrls = await productRefUrls(piece);
+  const productRefs = await productRefUrls(piece);
+  const productUrls = productRefs.map((r) => r.url);
   const refUrls = [url, ...productUrls].filter(Boolean).slice(0, 3);
   pieces.setStatus(piece.id, 'rendering');
   await submitWithPoll({
     // any ref (face and/or product) → /edit endpoint (image_urls is required there)
     slug: piece.tenant_slug, modelKey: refUrls.length ? 'imageEdit' : 'image',
     input: {
-      prompt: `${brief.post_prompt}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}${productUrls.length ? '. Reference image(s) of the actual product are attached — reproduce the real product faithfully (label, shape, colors).' : ''}. AI-generated synthetic creator.${brief.regen_feedback ? ` OPERATOR FEEDBACK (must address): ${brief.regen_feedback}` : ''}`,
+      prompt: `${brief.post_prompt}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}${productReferenceClause(productRefs)}. AI-generated synthetic creator. ${NO_ONSCREEN_TEXT}${brief.regen_feedback ? ` OPERATOR FEEDBACK (must address): ${brief.regen_feedback}` : ''}`,
       ...(refUrls.length ? { image_urls: refUrls } : {}),
       num_images: 1, aspect_ratio: '4:5',
     },
@@ -259,6 +291,7 @@ async function handleRenderReel({ pieceId }) {
   const frames = (brief.frame_prompts || []).slice(0, 3);
   if (!frames.length) throw new Error(`reel ${pieceId} has no frame_prompts`);
   const { ph, url } = await phantomRefUrl(piece);
+  const style = shotStyleClause(brief.shot_style);
 
   // shot-reuse decision — ORDER-based, not pool-based: concurrent reel jobs all
   // see an empty pool at kick time (TOCTOU), so ownership comes from the pieces
@@ -271,14 +304,15 @@ async function handleRenderReel({ pieceId }) {
   const slots = frames.map((_, i) => i).filter((i) => i === 0 || !SHOT_REUSE() || isFirstReel);
   const reusedSlots = frames.length - slots.length;
 
-  const productUrls = await productRefUrls(piece);
+  const productRefs = await productRefUrls(piece);
+  const productUrls = productRefs.map((r) => r.url);
   const refUrls = [url, ...productUrls].filter(Boolean).slice(0, 3);
   pieces.setStatus(piece.id, 'rendering');
   for (const slot of slots) {
     await submitWithPoll({
       slug: piece.tenant_slug, modelKey: refUrls.length ? 'imageEdit' : 'image',
       input: {
-        prompt: `${frames[slot]}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}${productUrls.length ? '. Reference image(s) of the actual product are attached — reproduce the real product faithfully (label, shape, colors).' : ''}. Vertical 9:16 video keyframe. AI-generated synthetic creator.${brief.regen_feedback ? ` OPERATOR FEEDBACK (must address): ${brief.regen_feedback}` : ''}`,
+        prompt: `${style}${frames[slot]}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}${productReferenceClause(productRefs)}. Vertical 9:16 video keyframe. AI-generated synthetic creator. ${NO_ONSCREEN_TEXT}${brief.regen_feedback ? ` OPERATOR FEEDBACK (must address): ${brief.regen_feedback}` : ''}`,
         ...(refUrls.length ? { image_urls: refUrls } : {}),
         num_images: 1, aspect_ratio: '9:16',
       },

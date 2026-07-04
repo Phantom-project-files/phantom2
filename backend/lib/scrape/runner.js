@@ -51,6 +51,29 @@ function productImageCandidates(pages) {
   return out;
 }
 
+// Vision-derived product description (lib/llm.js vision() — wired up here for the
+// first time). A short, concrete note on colors/packaging/features/shot angle that
+// lib/media/render.js folds into every render prompt that attaches this image,
+// instead of relying on the generic "reproduce the product faithfully" reminder
+// alone — that gap is exactly what the first live run's product-fidelity QC reject
+// caught. Best-effort: vision() only works under CLAUDE_MODE=anthropic_api (see its
+// doc comment); any other mode, or any failure, just skips it — renders fall back
+// to the generic instruction, same as before this existed.
+async function analyzeProductImage({ slug, buf, contentType }) {
+  if (llm.mode !== 'anthropic_api') return null;
+  try {
+    const note = await llm.vision({
+      tenant: slug,
+      prompt: 'This is a product photo scraped from the brand\'s own website. In 2-3 plain sentences (no markdown), describe exactly what an AI image/video model must reproduce if regenerating this product from a text prompt: precise colors, packaging shape/material, visible logos or printed text, distinguishing features, background. This text is pasted directly into that generation prompt.',
+      images: [{ base64: buf.toString('base64'), mediaType: contentType }],
+      maxTokens: 300,
+    });
+    return note.replace(/\s+/g, ' ').trim().slice(0, 600) || null;
+  } catch {
+    return null; // a nice-to-have here — never fail the scrape over it
+  }
+}
+
 async function harvestProductImages({ slug, intakeId, pages, flags }) {
   if (process.env.SCRAPE_OFFLINE === '1' || PRODUCT_IMG_MAX() <= 0) return [];
   const stored = [];
@@ -68,14 +91,16 @@ async function harvestProductImages({ slug, intakeId, pages, flags }) {
       const buf = Buffer.from(await r.arrayBuffer());
       if (buf.length < 10 * 1024 || buf.length > 8 * 1024 * 1024) continue; // icons / monsters
       const ext = m[1] === 'jpeg' || m[1] === 'jpg' ? 'jpg' : m[1];
+      const contentType = `image/${m[1] === 'jpg' ? 'jpeg' : m[1]}`;
+      const adNotes = await analyzeProductImage({ slug, buf, contentType });
       const key = storage.makeKey(slug, 'product', ext);
-      await storage.put(slug, key, buf, `image/${m[1] === 'jpg' ? 'jpeg' : m[1]}`);
+      await storage.put(slug, key, buf, contentType);
       const assetId = mediaAssets.record({
-        tenantSlug: slug, kind: 'product', r2Key: key, contentType: `image/${m[1] === 'jpg' ? 'jpeg' : m[1]}`,
+        tenantSlug: slug, kind: 'product', r2Key: key, contentType,
         sizeBytes: buf.length, refKind: 'intake', refId: intakeId,
-        meta: { source_url: cand.url, page_kind: cand.page },
+        meta: { source_url: cand.url, page_kind: cand.page, ad_notes: adNotes },
       });
-      stored.push({ asset_id: assetId, source_url: cand.url, page_kind: cand.page, bytes: buf.length });
+      stored.push({ asset_id: assetId, source_url: cand.url, page_kind: cand.page, bytes: buf.length, ad_notes: adNotes });
     } catch { /* next candidate */ }
   }
   if (!stored.length) flags.push('no product reference images could be harvested (renders fall back to text-only product depiction)');
