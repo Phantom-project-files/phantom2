@@ -264,3 +264,19 @@ on_platform_audio_preview_link/**is_ads_eligible**.
   smoke ALL PASS. Going live = set IG_AUDIO_ACCESS_TOKEN + IG_AUDIO_USER_ID (Meta app w/ an
   IG professional account + the two scopes) — code path is identical, mock swaps to the real
   Graph call.
+
+## 2026-07-04 — Meta app go-live prep (IG Audio API)
+Can't create the Meta app / generate the token for the operator (account creation + OAuth
+authorization = their login only). Delivered the wrap-around instead:
+- **docs/runbooks/instagram-audio-setup.md** — exact steps. Two load-bearing insights: (1) the
+  trending FETCH needs only ONE IG pro account (Phantom's own) → **no App Review** (App Review
+  is only for publishing to other accounts = the shelved auto-deploy); (2) use a **System User
+  token** (Business Settings) with **no expiry** → no token-refresh code needed. Steps cover
+  app create (Business type) → Instagram product → get IG business-account id via Graph Explorer
+  (`me/accounts` → `{page-id}?fields=instagram_business_account`) → System User token w/
+  instagram_basic + instagram_content_publish → paste 2 env vars → verify → sync.
+- **scripts/verify-trending-live.js** — reads .env, hits real ig_audio read-only, prints trending
+  sounds + downloadable flag, or the exact Graph error w/ fixes (expired token / missing scope /
+  wrong id = page vs IG id). Confirmed it reports mock mode cleanly today.
+- Going live = set IG_AUDIO_ACCESS_TOKEN + IG_AUDIO_USER_ID (both operator-obtained), restart,
+  POST /api/admin/audio/sync-trending {ads_only:true}. Code path already verified in mock.
