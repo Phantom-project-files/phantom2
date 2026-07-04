@@ -215,3 +215,35 @@ actually watch them; QC must influence future generations.
 3. Approve → deployable (deploy gate is approved-only) + approval-rate signal.
    IMPORTANT NUANCE: this loop existed since Phase 6 but was inert under CLAUDE_MODE=mock
    (canned LLM ignored the injected learnings). With claude_code it's live for real.
+
+## Session close — 2026-07-04
+### Discovery at close: the operator's QC rejects already drove the final content
+Forensics on a $6 spend discrepancy revealed the operator HAD found production-room QC
+mid-run and rejected both first takes at 10:29-10:31 ("no product images / brand
+guidelines" on the post; "several ai zooms / end title brand identity" on the reel).
+The regen loop did its job silently: reasons → re-render prompts → the Golden Hour reel
++ post admired in the gallery were the SECOND takes. QC has therefore been proven
+end-to-end in production with real operator feedback.
+- Their two reasons now distill (claude_code, $0) into the brand learnings block injected
+  into every future Blue Bottle script-gen: avoid AI zooms · end titles match brand ·
+  include product images · follow brand guidelines.
+- Ops gotcha found+fixed at close: qc_learnings_cache got poisoned with mock bullets by a
+  dotenv-less node one-liner (CLAUDE_MODE unset → mock). Row deleted, regenerated real.
+  Lesson: standalone scripts MUST `import 'dotenv/config'`.
+
+### Money (Fal, dashboard-grade estimates from cost_events)
+- Today: **$18.01** — first Blue Bottle run $4.99 + re-run tenant $13.02 (base ~$6.96
+  + ~$6.06 of QC-reject retakes — retakes bill like renders; this is by design, cap 3).
+- All-time non-mock: $22.40 (incl. yesterday's $4.39 verification).
+- **Check the Fal balance before the next real run** — $18.48 was added yesterday; the
+  account is likely near empty.
+
+### State at close
+- :3020 running (background), CLAUDE_MODE=claude_code, MOCK_MEDIA_GEN=0 (real Fal),
+  COMING_SOON=0 local. Operator logged into console in their Chrome.
+- Blue Bottle intake E-U9Vg7dAkR_: 2 second-take pieces `ready`, awaiting operator verdict
+  (gallery or production room). regen_count 1/3 each.
+- Today's commits: d5c1859 funnel · f0c69bc operator unblock · d60e63f UI redo + sandbox ·
+  20dacc3 real-run log · da5e008 product refs + claude_code · 4b4a232 gallery QC + bridge.
+- Parked: Meta IG-audio creds (runbook ready) · Stripe live (runbook) · Fly deploy
+  (provision script, DRY_RUN default) · self-host fonts at launch · licensed music library.
