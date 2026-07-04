@@ -188,3 +188,30 @@ srcset-lazy-loaded) and render.js had no plumbing for them anyway.
   Auto-run after override: "skipped: existing production" ✓.
 - Media: kick log **"refs: 3 (2 product)"** — Fal calls carried face + 2 real product photos.
   3 shots + post; **spend $6.96 = estimate to the cent**. Master audio=none, preview=AAC.
+
+## Prompt 5 — gallery ⇄ console bridge + operator QC in the gallery
+Complaints: gallery unreachable from console surfaces; no QC on the video/post where you
+actually watch them; QC must influence future generations.
+
+### Built
+- **gallery.html**: admin session ⇒ every card gets an OPERATOR QC row — approve (✓) /
+  reject (✗ w/ inline reason field, Enter submits, no blocking dialogs) → same
+  POST /api/admin/piece/:id/qc as the production room; pill + message update in place.
+  Header gains a "Production room" link (admin only). Customers see none of it.
+- **production.html**: header gains a "Gallery" link (next to Console). Sandbox runner
+  already had per-intake Gallery links.
+- Live-verified the click path on the superseded first-run post: pill flipped to
+  approved, verdict recorded.
+
+### How QC takes effect (wiring verified in code, now ACTIVE because claude_code is on)
+1. Reject w/ reason → immediate retake: reason lands in brief.regen_feedback, render
+   prompts carry "OPERATOR FEEDBACK (must address)", artifacts cleared, re-render
+   auto-queued (REGEN_CAP 3; 4th reject → status rejected). NOTE: each reel retake ≈
+   real Fal spend; posts ≈ $0.15.
+2. Verdict reasons → qc_verdicts → qc-learnings rollup → ≤6 avoid/prefer bullets
+   (Haiku via CLI, $0, cached by verdict count) → brandLearningsBlock injected into
+   script-gen ideation + brief prompts (scriptgen/index.js:129,164,207) for every FUTURE
+   generation of that tenant. Confirmed empty-state renders cleanly for fresh tenants.
+3. Approve → deployable (deploy gate is approved-only) + approval-rate signal.
+   IMPORTANT NUANCE: this loop existed since Phase 6 but was inert under CLAUDE_MODE=mock
+   (canned LLM ignored the injected learnings). With claude_code it's live for real.

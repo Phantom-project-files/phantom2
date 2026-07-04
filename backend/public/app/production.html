@@ -129,6 +129,7 @@
   <div class="wrap nav-inner">
     <a class="brand" href="admin.html"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom <small>production</small></a>
     <span class="nav-spacer"></span>
+    <a class="btn btn-quiet btn-sm" id="galleryLink"><i data-icon="image" data-size="14"></i> Gallery</a>
     <a class="btn btn-quiet btn-sm" href="admin.html"><i data-icon="arrow-left" data-size="14"></i> Console</a>
   </div>
 </header>
@@ -189,6 +190,7 @@
 <script>
 const intakeId = new URLSearchParams(location.search).get('intake');
 if (!intakeId) location.replace('admin.html');
+document.getElementById('galleryLink').href = 'gallery.html?intake=' + encodeURIComponent(intakeId);
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

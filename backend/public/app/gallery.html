@@ -53,6 +53,21 @@
   .empty-state i { color:var(--text-3); }
   .empty-state div { margin-top:12px; font-size:.92rem; }
 
+  /* ---- operator QC (admin session only) ---- */
+  .qc-row { display:flex; align-items:center; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline); }
+  .qc-row .qc-label { font-family:var(--mono); font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; color:var(--text-3); margin-right:auto; }
+  .qc-btn { width:30px; height:30px; border-radius:50%; border:1px solid var(--hairline-2); background:var(--surface); color:var(--text-2); cursor:pointer; display:grid; place-items:center; transition:all .15s var(--ease); }
+  .qc-btn:hover { transform:scale(1.08); }
+  .qc-btn.approve:hover { border-color:rgba(54,226,196,.6); color:var(--teal); background:rgba(54,226,196,.1); }
+  .qc-btn.reject:hover { border-color:rgba(255,84,112,.6); color:var(--danger); background:rgba(255,84,112,.1); }
+  .qc-btn:disabled { opacity:.35; cursor:not-allowed; transform:none; }
+  .qc-reason { display:none; gap:6px; margin-top:8px; }
+  .qc-reason.show { display:flex; }
+  .qc-reason input { flex:1; height:32px; border-radius:8px; border:1px solid var(--hairline-2); background:var(--bg-2); color:var(--text); padding:0 10px; font-size:.76rem; outline:none; }
+  .qc-reason input:focus { border-color:var(--accent); }
+  .qc-reason button { height:32px; padding:0 12px; border-radius:8px; border:0; background:linear-gradient(180deg, var(--accent-2), var(--accent)); color:var(--on-accent); font-size:.74rem; font-weight:600; cursor:pointer; }
+  .qc-msg { font-size:.7rem; color:var(--text-3); margin-top:6px; min-height:1em; }
+
   @media (max-width:560px) {
     .grid { grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:12px; }
   }
@@ -63,6 +78,8 @@
 <header class="nav">
   <div class="wrap nav-inner">
     <a class="brand" href="#"><img class="mark" src="assets/phantom-logo.svg" alt=""> Phantom <small>gallery</small></a>
+    <span style="flex:1"></span>
+    <a class="btn btn-quiet btn-sm" id="prodLink" style="display:none">Production room</a>
   </div>
 </header>
 
@@ -97,6 +114,15 @@ function dayLabel(dateStr) {
 const MUSIC_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
 
 (async () => {
+  // Operator session? → QC controls on every card + console/production links.
+  let isAdmin = false;
+  try { isAdmin = !!(await (await fetch('/api/config', { credentials: 'same-origin' })).json()).is_admin; } catch {}
+  if (isAdmin) {
+    const pl = document.getElementById('prodLink');
+    pl.href = 'production.html?intake=' + encodeURIComponent(intakeId);
+    pl.style.display = '';
+  }
+
   const r = await fetch('/api/intake/' + encodeURIComponent(intakeId) + '/gallery', { credentials: 'same-origin' });
   const d = await r.json();
   if (!d.success) { document.getElementById('grid').textContent = d.error; return; }
@@ -125,15 +151,78 @@ const MUSIC_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" s
     } else if (it.kind === 'reel') {
       audio = '<div class="audio-note">' + MUSIC_SVG + '<span>Preview only — the download is silent; add a trending sound of your choice on upload.</span></div>';
     }
+    // Operator QC: approve / reject-with-reason, right where the content plays.
+    // Reject re-renders the piece with the reason injected into the prompt
+    // (max 3 takes) AND the reason rolls into brand learnings for future
+    // script-gens — same endpoint as the production room.
+    const qc = isAdmin
+      ? '<div class="qc-row" data-piece="' + it.piece_id + '">'
+        + '<span class="qc-label">operator qc</span>'
+        + '<button class="qc-btn approve" data-verdict="approve" title="Approve"><i data-icon="check" data-size="14"></i></button>'
+        + '<button class="qc-btn reject" data-verdict="reject" title="Reject + regenerate"><i data-icon="x" data-size="14"></i></button>'
+        + '</div>'
+        + '<div class="qc-reason" data-piece="' + it.piece_id + '">'
+        + '<input type="text" maxlength="200" placeholder="what\'s wrong? (drives the retake + future briefs)">'
+        + '<button type="button">Reject</button>'
+        + '</div>'
+        + '<div class="qc-msg" data-piece="' + it.piece_id + '"></div>'
+      : '';
     html += '<div class="item ' + (it.kind === 'reel' ? 'reel' : 'post') + '"><div class="media">' + media + '</div><div class="meta">'
       + '<div class="row"><span class="k-chip"><i data-icon="' + (it.kind === 'reel' ? 'film' : 'image') + '" data-size="13"></i>' + esc(it.kind) + '<span class="date-chip">· ' + esc(it.scheduled_date) + '</span></span>'
-      + '<span class="status-pill' + (it.status === 'approved' ? ' approved' : '') + '">' + esc(it.status) + '</span></div>'
+      + '<span class="status-pill' + (it.status === 'approved' ? ' approved' : '') + '" data-pill="' + it.piece_id + '">' + esc(it.status) + '</span></div>'
       + (it.caption ? '<div class="caption">' + esc(it.caption) + '</div>' : '')
-      + audio + '</div></div>';
+      + audio + qc + '</div></div>';
   });
   document.getElementById('grid').innerHTML = html || '<div class="empty-state"><i data-icon="sparkles" data-size="26"></i><div>content lands here as it clears QC</div></div>';
   Phantom.mountIcons();
   track('gallery.viewed', { items: d.items.length });
+
+  if (isAdmin) {
+    const grid = document.getElementById('grid');
+    async function sendVerdict(pieceId, verdict, reasonText) {
+      const msg = grid.querySelector('.qc-msg[data-piece="' + pieceId + '"]');
+      const pill = grid.querySelector('[data-pill="' + pieceId + '"]');
+      msg.textContent = 'saving…';
+      try {
+        const res = await fetch('/api/admin/piece/' + pieceId + '/qc', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+          body: JSON.stringify({ verdict, reason_text: reasonText || null }),
+        });
+        const out = await res.json();
+        if (!out.success) throw new Error(out.error || 'qc failed');
+        pill.textContent = out.status;
+        pill.classList.toggle('approved', out.status === 'approved');
+        msg.textContent = verdict === 'approve'
+          ? 'approved — deployable; feedback recorded'
+          : 'rejected — regenerating with your note (' + out.status + '); it returns here when the retake clears';
+        track('gallery.qc', { piece: pieceId, verdict });
+      } catch (err) { msg.textContent = err.message; }
+    }
+    grid.addEventListener('click', (e) => {
+      const btn = e.target.closest('.qc-btn');
+      if (btn) {
+        const pieceId = btn.closest('.qc-row').dataset.piece;
+        if (btn.dataset.verdict === 'approve') { sendVerdict(pieceId, 'approve'); return; }
+        const reason = grid.querySelector('.qc-reason[data-piece="' + pieceId + '"]');
+        reason.classList.toggle('show');
+        if (reason.classList.contains('show')) reason.querySelector('input').focus();
+        return;
+      }
+      const rej = e.target.closest('.qc-reason button');
+      if (rej) {
+        const wrap = rej.closest('.qc-reason');
+        sendVerdict(wrap.dataset.piece, 'reject', wrap.querySelector('input').value.trim());
+        wrap.classList.remove('show');
+      }
+    });
+    grid.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.matches('.qc-reason input')) {
+        const wrap = e.target.closest('.qc-reason');
+        sendVerdict(wrap.dataset.piece, 'reject', e.target.value.trim());
+        wrap.classList.remove('show');
+      }
+    });
+  }
 })();
 </script>
 
