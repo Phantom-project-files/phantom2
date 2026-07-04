@@ -215,24 +215,40 @@ async function phantomRefUrl(piece) {
   return { ph, url: await storage.fetchableUrl(ph.tenant_slug, ph.ref_image_key, 3600) };
 }
 
+// Product reference images harvested at scrape time (kind='product', ref=intake).
+// Attached alongside the phantom face so nano-banana /edit reproduces the REAL
+// product (label, shape, colors) instead of inventing a lookalike. Cap keeps the
+// total image_urls at 3 (1 face + 2 product) — comfortably inside /edit limits.
+const PRODUCT_REFS = () => parseInt(process.env.PRODUCT_REF_IMAGES || '2', 10);
+async function productRefUrls(piece) {
+  if (PRODUCT_REFS() <= 0) return [];
+  const rows = mediaAssets.byRef('intake', piece.intake_id)
+    .filter((a) => a.kind === 'product' && a.status === 'active')
+    .slice(0, PRODUCT_REFS());
+  if (process.env.MOCK_MEDIA_GEN === '1') return rows.map(() => 'mock://product-ref');
+  return Promise.all(rows.map((a) => storage.fetchableUrl(piece.tenant_slug, a.r2_key, 3600)));
+}
+
 async function handleRenderPost({ pieceId }) {
   const piece = pieces.byId(pieceId);
   if (!piece) throw new Error(`piece ${pieceId} not found`);
   if (piece.status === 'ready') return { already: true };
   const brief = JSON.parse(piece.brief);
   const { ph, url } = await phantomRefUrl(piece);
+  const productUrls = await productRefUrls(piece);
+  const refUrls = [url, ...productUrls].filter(Boolean).slice(0, 3);
   pieces.setStatus(piece.id, 'rendering');
   await submitWithPoll({
-    // phantom ref → /edit endpoint (image_urls is required there, rejected on plain t2i)
-    slug: piece.tenant_slug, modelKey: url ? 'imageEdit' : 'image',
+    // any ref (face and/or product) → /edit endpoint (image_urls is required there)
+    slug: piece.tenant_slug, modelKey: refUrls.length ? 'imageEdit' : 'image',
     input: {
-      prompt: `${brief.post_prompt}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}. AI-generated synthetic creator.${brief.regen_feedback ? ` OPERATOR FEEDBACK (must address): ${brief.regen_feedback}` : ''}`,
-      ...(url ? { image_urls: [url] } : {}),
+      prompt: `${brief.post_prompt}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}${productUrls.length ? '. Reference image(s) of the actual product are attached — reproduce the real product faithfully (label, shape, colors).' : ''}. AI-generated synthetic creator.${brief.regen_feedback ? ` OPERATOR FEEDBACK (must address): ${brief.regen_feedback}` : ''}`,
+      ...(refUrls.length ? { image_urls: refUrls } : {}),
       num_images: 1, aspect_ratio: '4:5',
     },
     next: { action: 'ingest_post', ctx: { pieceId: piece.id } },
   });
-  return { submitted: true };
+  return { submitted: true, refs: refUrls.length };
 }
 
 async function handleRenderReel({ pieceId }) {
@@ -255,13 +271,15 @@ async function handleRenderReel({ pieceId }) {
   const slots = frames.map((_, i) => i).filter((i) => i === 0 || !SHOT_REUSE() || isFirstReel);
   const reusedSlots = frames.length - slots.length;
 
+  const productUrls = await productRefUrls(piece);
+  const refUrls = [url, ...productUrls].filter(Boolean).slice(0, 3);
   pieces.setStatus(piece.id, 'rendering');
   for (const slot of slots) {
     await submitWithPoll({
-      slug: piece.tenant_slug, modelKey: url ? 'imageEdit' : 'image',
+      slug: piece.tenant_slug, modelKey: refUrls.length ? 'imageEdit' : 'image',
       input: {
-        prompt: `${frames[slot]}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}. Vertical 9:16 video keyframe. AI-generated synthetic creator.${brief.regen_feedback ? ` OPERATOR FEEDBACK (must address): ${brief.regen_feedback}` : ''}`,
-        ...(url ? { image_urls: [url] } : {}),
+        prompt: `${frames[slot]}${ph ? `. Featuring ${ph.name}: ${ph.appearance_prompt}` : ''}${productUrls.length ? '. Reference image(s) of the actual product are attached — reproduce the real product faithfully (label, shape, colors).' : ''}. Vertical 9:16 video keyframe. AI-generated synthetic creator.${brief.regen_feedback ? ` OPERATOR FEEDBACK (must address): ${brief.regen_feedback}` : ''}`,
+        ...(refUrls.length ? { image_urls: refUrls } : {}),
         num_images: 1, aspect_ratio: '9:16',
       },
       next: { action: 'keyframe_to_video', ctx: { pieceId: piece.id, slot, freshCount: slots.length, reusedSlots } },
@@ -269,7 +287,7 @@ async function handleRenderReel({ pieceId }) {
   }
   logEvent({
     event: 'media.reel_kicked', tenantSlug: piece.tenant_slug, refId: piece.id,
-    message: `${slots.length} fresh shot(s), ${reusedSlots} reused from campaign pool`,
+    message: `${slots.length} fresh shot(s), ${reusedSlots} reused from campaign pool, refs: ${refUrls.length} (${productUrls.length} product)`,
   });
   return { fresh: slots.length, reused: reusedSlots };
 }

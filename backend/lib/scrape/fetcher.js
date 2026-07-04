@@ -162,9 +162,19 @@ export function extractDeterministic(html, sourceUrl) {
     .filter((h) => h.text.length > 0 && h.text.length < 220)
     .slice(0, 30);
 
+  // src/data-src PLUS srcset (modern sites lazy-load through srcset only — the
+  // Blue Bottle lesson: plain src harvesting returned zero images). For srcset
+  // take the LAST candidate (largest by convention).
+  const srcsetUrls = findAll(/<(?:img|source)[^>]+?(?:srcset|data-srcset)=["']([^"']+)["']/gi, html)
+    .flatMap((m) => {
+      const parts = m[1].split(',').map((s) => s.trim().split(/\s+/)[0]).filter(Boolean);
+      return parts.length ? [parts[parts.length - 1]] : [];
+    });
   const imgs = uniq(
     findAll(/<img[^>]+?(?:src|data-src)=["']([^"']+)["']/gi, html)
-      .map((m) => absoluteUrl(base, m[1]))
+      .map((m) => m[1])
+      .concat(srcsetUrls)
+      .map((u) => absoluteUrl(base, u))
       .filter((u) => u && /^https?:\/\//i.test(u)
         && !/\{\{|\}\}|%7b|%7d/i.test(u)
         && !/(^|\/)(spinner|loading|pixel|tracking|sprite|placeholder)/i.test(u)),

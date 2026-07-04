@@ -15,17 +15,72 @@
 // exactly what was scraped vs. what needs Apify.
 
 import { nanoid } from 'nanoid';
-import { intakes, scrapeSources, tenants, events } from '../db.js';
+import { intakes, scrapeSources, tenants, events, mediaAssets } from '../db.js';
 import { storage } from '../storage.js';
 import { logEvent } from '../logs.js';
 import { llm } from '../llm.js';
 import * as jobs from '../jobs.js';
-import { fetchPage, detectBlocked, discoverPages, extractDeterministic } from './fetcher.js';
+import { fetchPage, detectBlocked, discoverPages, extractDeterministic, browserHeaders } from './fetcher.js';
 import { SECTIONS, assembleScrape } from './taxonomy.js';
 import { probeAll } from './social.js';
 
 const MAX_PAGES = () => parseInt(process.env.SCRAPE_MAX_PAGES || '6', 10);
 const LLM_BUDGET = () => parseInt(process.env.SCRAPE_LLM_CALL_BUDGET || '10', 10);
+const PRODUCT_IMG_MAX = () => parseInt(process.env.SCRAPE_PRODUCT_IMAGES || '3', 10);
+
+// ── product reference images ──────────────────────────────────────────────────
+// Download a few real product shots at scrape time so renders can attach them as
+// Fal /edit references (product-faithful pixels, not lookalikes). Candidates come
+// from the already-fetched pages — product pages first, og:image is often the
+// hero shot. Best-effort: any failure just moves to the next candidate.
+function productImageCandidates(pages) {
+  const seen = new Set();
+  const out = [];
+  const byPref = [...pages.filter((p) => p.kind === 'products'), ...pages.filter((p) => p.kind !== 'products')];
+  for (const p of byPref) {
+    const og = p.det?.og?.image;
+    const urls = [...(og ? [og] : []), ...(p.det?.images || [])];
+    for (const u of urls) {
+      if (seen.has(u)) continue;
+      seen.add(u);
+      if (/\.(svg|gif|ico)(\?|$)/i.test(u)) continue;
+      if (/(logo|icon|favicon|badge|payment|checkout|flag|avatar|profile)/i.test(u)) continue;
+      out.push({ url: u, page: p.kind });
+    }
+  }
+  return out;
+}
+
+async function harvestProductImages({ slug, intakeId, pages, flags }) {
+  if (process.env.SCRAPE_OFFLINE === '1' || PRODUCT_IMG_MAX() <= 0) return [];
+  const stored = [];
+  const candidates = productImageCandidates(pages);
+  for (const cand of candidates) {
+    if (stored.length >= PRODUCT_IMG_MAX()) break;
+    if (candidates.indexOf(cand) >= 12) break; // don't chase a long tail of dead links
+    try {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 10000);
+      const r = await fetch(cand.url, { signal: ctl.signal, headers: browserHeaders(), redirect: 'follow' }).finally(() => clearTimeout(t));
+      const ctype = (r.headers.get('content-type') || '').toLowerCase();
+      const m = ctype.match(/^image\/(jpeg|jpg|png|webp)/);
+      if (!r.ok || !m) continue;
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length < 10 * 1024 || buf.length > 8 * 1024 * 1024) continue; // icons / monsters
+      const ext = m[1] === 'jpeg' || m[1] === 'jpg' ? 'jpg' : m[1];
+      const key = storage.makeKey(slug, 'product', ext);
+      await storage.put(slug, key, buf, `image/${m[1] === 'jpg' ? 'jpeg' : m[1]}`);
+      const assetId = mediaAssets.record({
+        tenantSlug: slug, kind: 'product', r2Key: key, contentType: `image/${m[1] === 'jpg' ? 'jpeg' : m[1]}`,
+        sizeBytes: buf.length, refKind: 'intake', refId: intakeId,
+        meta: { source_url: cand.url, page_kind: cand.page },
+      });
+      stored.push({ asset_id: assetId, source_url: cand.url, page_kind: cand.page, bytes: buf.length });
+    } catch { /* next candidate */ }
+  }
+  if (!stored.length) flags.push('no product reference images could be harvested (renders fall back to text-only product depiction)');
+  return stored;
+}
 
 async function fetchAux(urls, kind, pages, flags) {
   for (const url of urls) {
@@ -113,9 +168,15 @@ export async function runScrape({ intakeId }) {
   const needApify = probes.filter((p) => p.status === 'blocked_needs_apify').map((p) => p.platform);
   if (needApify.length) flags.push(`needs Apify for deep data: ${needApify.join(', ')}`);
 
+  // 5.5 product reference images → storage + media_assets (renders attach them)
+  const productImages = await harvestProductImages({ slug, intakeId, pages, flags });
+  if (productImages.length) {
+    logEvent({ event: 'scrape.product_refs', tenantSlug: slug, refId: intakeId, message: `${productImages.length} product reference image(s) stored` });
+  }
+
   // 6. assemble + persist
   const sources = scrapeSources.byIntake(intakeId).map(({ source, handle, status, note }) => ({ source, handle, status, note }));
-  const scrape = assembleScrape({ intake, deterministic, pages, sections: ctx.sections, sources, flags, llmCalls });
+  const scrape = assembleScrape({ intake, deterministic, pages, sections: ctx.sections, sources, flags, llmCalls, productImages });
   const key = storage.makeKey(slug, 'scrape', 'json');
   await storage.put(slug, key, Buffer.from(JSON.stringify(scrape, null, 2)), 'application/json');
 

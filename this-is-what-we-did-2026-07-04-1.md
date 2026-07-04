@@ -156,3 +156,35 @@ Verified server-side while in flight, then to completion:
   1 post image $0.15). Monitor watched the in-flight Fal polls (attempt 4/12, healthy).
 - The intake's other 58 pieces stay briefed ($0) — staged generation worked exactly as
   designed on real money.
+
+## Prompt 4 — why no Blue Bottle products? → real-Claude briefs + product-reference plumbing
+Diagnosis of the first real run: (1) CLAUDE_MODE was still `mock` → canned generic briefs
+("phantom holds product", caption "#brand"); (2) the model call attached ONLY the phantom
+face ref — no product images existed (scrape harvested 0 URLs; bluebottlecoffee.com is
+srcset-lazy-loaded) and render.js had no plumbing for them anyway.
+
+### Built
+- `.env` CLAUDE_MODE=mock → **claude_code** (local CLI, Max plan, $0 — verify-claude-code
+  14.3s ✓).
+- `lib/scrape/fetcher.js`: srcset/data-srcset parsing (largest candidate) merged into the
+  image harvest — the Blue Bottle lesson.
+- `lib/scrape/runner.js`: `harvestProductImages` — downloads up to SCRAPE_PRODUCT_IMAGES=3
+  product-page/og images (type+size guards, product-page priority, logo/icon filtered) into
+  storage as kind='product' media_assets (ref=intake); offline/smoke → no-op; flags when none.
+- `lib/scrape/taxonomy.js`: scrape JSON now carries brand_assets.product_images
+  [{asset_id, source_url, page_kind, bytes}].
+- `lib/media/render.js`: `productRefUrls` (PRODUCT_REF_IMAGES=2 default) — post + reel
+  keyframe calls now send image_urls = [face, product×2] (cap 3) to nano-banana /edit with a
+  reproduce-the-real-product instruction; `media.reel_kicked` log now records ref counts.
+- Ordering discovery: script-gen has an existing-production guard → running custom-count
+  scriptgen BEFORE override means the override's auto script-gen skips (no wasted full-volume
+  pass). Sandbox habit: scrape → scriptgen {counts} → override → generate.
+
+### Re-run (intake E-U9Vg7dAkR_, tenant blue-bottle-coffee-txtp) — all verified
+- Scrape (claude_code): **3 product photos harvested** (Cloudinary, 239-445KB); real sections
+  ("Golden Hour" summer seasonal w/ tasting notes, "Hayes Valley Espresso" best seller).
+- Script-gen {1,1}: 3 LLM calls, $0 — REAL briefs: reel = Elena Vega, 6pm golden light,
+  Golden Hour over ice, tasting-note overlays; post = Marcus Bell holding the Golden Hour bag.
+  Auto-run after override: "skipped: existing production" ✓.
+- Media: kick log **"refs: 3 (2 product)"** — Fal calls carried face + 2 real product photos.
+  3 shots + post; **spend $6.96 = estimate to the cent**. Master audio=none, preview=AAC.

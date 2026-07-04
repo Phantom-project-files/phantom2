@@ -164,7 +164,7 @@ Set the non-matching branch to null. shopify comes from the tech hints.`,
 ];
 
 // Assemble the final scrape.json — the Phase-3 script-gen input contract.
-export function assembleScrape({ intake, deterministic, pages, sections, sources, flags, llmCalls }) {
+export function assembleScrape({ intake, deterministic, pages, sections, sources, flags, llmCalls, productImages = [] }) {
   return {
     version: 2,
     intake_id: intake.id,
@@ -179,6 +179,7 @@ export function assembleScrape({ intake, deterministic, pages, sections, sources
       ...(sections.brand_assets || {}),
       logo: deterministic.logo,
       images: deterministic.images,
+      product_images: productImages,   // downloaded refs: [{asset_id, source_url, page_kind, bytes}]
       existing_media: { photos: deterministic.images.length, videos: 0, templates: 0 },
     },
     competitors: sections.competitors || null,
