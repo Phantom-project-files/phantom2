@@ -238,3 +238,29 @@ ZIP organized in day-by-day folders. Built (no Lane B/deploy split — that's sh
 - Trending SOURCE for now = library tracks tagged source='trending_ig'/'trending_open' (operator-seeded);
   live Instagram Audio API fetch (GET /ig_audio, returns trending by default per the research) is the
   documented next adapter — needs Meta app creds. No auto-deploy, no Ayrshare draft path (shelved).
+
+## 2026-07-04 — Instagram Audio API fetch wired
+Live adapter for pulling TRENDING audio into the library (the documented next step from the
+trending-delivery build). Confirmed the exact contract against Meta's docs via WebFetch first:
+`GET graph.facebook.com/v22.0/ig_audio?audio_type=music|original_sound&user_id=&access_token=`
+(omit search_query → trending); scopes instagram_basic + instagram_content_publish; returns
+audio_id/title/display_artist/duration_in_ms/**download_url** (temp ~1.5d preview)/
+on_platform_audio_preview_link/**is_ads_eligible**.
+- **lib/edit/trending.js** (new): `fetchTrending({audioType,limit,searchQuery})` + 
+  `syncTrendingToLibrary({audioType,limit,adsOnly})`. Live: Graph API call → normalize →
+  download the preview bytes (download_url) → storage.put('library') → audioTracks.add
+  (source='trending_ig', source_url=on_platform_audio_preview_link, license_note carries
+  ig_audio:<id> + ads-eligible, vibe_tags ['trending',type,'ads-safe'?]). Idempotent by
+  source_url. `adsOnly` keeps only is_ads_eligible sounds (business-safe — the whole reason
+  we don't bake). IG_AUDIO_MODE=mock (default until token+user set) → deterministic fake
+  trending + ffmpeg-synthed 14s clips = full $0 chain, clips are REAL decodable audio so a
+  real assemble cuts against them.
+- **server.js**: `POST /api/admin/audio/sync-trending` {audio_type,limit,ads_only}; GET
+  /api/admin/audio now reports trending_mode. .env.example: IG_AUDIO_MODE/ACCESS_TOKEN/
+  USER_ID + META_GRAPH_VERSION/IG_AUDIO_BASE documented.
+- **Verified (live HTTP, mock mode)**: sync ads_only fetched 4 → added 3, skipped 1 (the
+  non-ads-eligible one filtered); rows carry source='trending_ig' + IG permalinks + tags;
+  synthed clip ffprobe = audio/14s (decodable); re-sync added 0 skipped 4 (idempotent).
+  smoke ALL PASS. Going live = set IG_AUDIO_ACCESS_TOKEN + IG_AUDIO_USER_ID (Meta app w/ an
+  IG professional account + the two scopes) — code path is identical, mock swaps to the real
+  Graph call.

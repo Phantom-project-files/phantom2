@@ -31,6 +31,7 @@ import { registerEditJobs } from './lib/edit/assemble.js';
 import { registerComposeJobs } from './lib/edit/post-compose.js';
 import { ffmpegAvailable } from './lib/edit/audio.js';
 import { buildReelInstruction, buildPostInstruction } from './lib/edit/instructions.js';
+import * as trendingAudio from './lib/edit/trending.js';
 import { applyVerdict, phantomVerdict, REASON_TAGS, REGEN_CAP } from './lib/qc.js';
 import { coverageReport } from './lib/coverage.js';
 import { rollup as qcRollup, summarizeLearnings } from './lib/qc-learnings.js';
@@ -592,7 +593,22 @@ app.post('/api/admin/audio', requireAdmin,
   });
 
 app.get('/api/admin/audio', requireAdmin, async (_req, res) => {
-  res.json({ success: true, tracks: audioTracks.list(), ffmpeg: await ffmpegAvailable() });
+  res.json({ success: true, tracks: audioTracks.list(), ffmpeg: await ffmpegAvailable(), trending_mode: trendingAudio.isMock() ? 'mock' : 'live' });
+});
+
+// Pull trending audio from the Instagram Audio API into the library (source='trending_ig').
+// Mock until IG_AUDIO_ACCESS_TOKEN + IG_AUDIO_USER_ID are set. adsOnly=1 keeps only
+// ads-eligible sounds (business-safe). audio_type=music|original_sound.
+app.post('/api/admin/audio/sync-trending', requireAdmin, async (req, res) => {
+  try {
+    const { audio_type = 'music', limit = 8, ads_only = false } = req.body || {};
+    const out = await trendingAudio.syncTrendingToLibrary({
+      audioType: String(audio_type), limit: Math.min(parseInt(limit, 10) || 8, 50), adsOnly: !!ads_only,
+    });
+    res.json({ success: true, ...out });
+  } catch (err) {
+    res.status(502).json({ success: false, error: err.message });
+  }
 });
 
 // Signed-URL redirect for any media asset (console thumbnails/players).
