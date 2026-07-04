@@ -186,3 +186,25 @@ audio must travel with the EDIT, not the file. TWO-LANE MODEL:
   Build list: audio_tracks.kind + trend metadata; assemble silent+preview path; gallery
   preview player + instruction card + ZIP; deploy_piece draft guard. NOT BUILT YET —
   awaiting operator go.
+
+### Item 6 — TRENDING AUDIO RESEARCH → design reshaped (deep-research, 20 primary sources)
+Deep-research harness (verification re-run after a session-limit hit). TWO premises overturned:
+1. "No API attaches native audio" — FALSE: Instagram has an Audio API (trending by default);
+   TikTok has real draft/inbox API mode (MEDIA_UPLOAD).
+2. "Trending audio is the goal" — WRONG TARGET: our clients are BUSINESS accounts, for whom
+   native trending *consumer* audio is a licensing violation (TikTok: businesses barred from
+   the general library → must use Commercial Music Library; Instagram: licensed music is
+   personal-use-only + blocked for many business accounts even in-app).
+Key facts: Lane B (draft-to-native) is REAL only on TikTok; Instagram has NO draft API.
+**Ayrshare ALREADY does TikTok draft mode** (`tikTokOptions.draft:true` → client's TikTok
+inbox, pending until they finish natively) + `autoAddMusic`. → STAY ON AYRSHARE (no migration).
+Music library pick for baked Lane A: **Epidemic Sound Partner API** (agency/client licensing +
+programmatic + all-platform Content-ID clearance); free commercial catalogs to layer: Meta
+Sound Collection (IG/FB) + TikTok CML (1M songs). AI-gen fallback: Mubert Business (export
+sublicense needs Startup+ $499) or existing Fal pipeline. Avoid Lickd (YT-only clearance),
+Suno at scale (copyright-vesting disclaimer + dupe collisions).
+RESHAPED LANE B: drop "trending consumer audio"; Lane A bakes commercial-cleared/licensed audio
+(all platforms, legal, default); Lane B = TikTok-only silent-master + Ayrshare draft handoff
+(no instruction card needed — the draft IS the handoff); IG keeps silent+card fallback but
+labeled personal-use-only, default IG to Meta Sound Collection baked. Build shrinks vs first
+draft (preview-mux/instruction-card become IG-only). Full doc: docs/research/audio-and-deployment-2026-07-03.md
