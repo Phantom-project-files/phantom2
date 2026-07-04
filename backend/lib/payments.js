@@ -98,10 +98,15 @@ export function markIntakePaid(intakeId, { via, plan = null, sessionId = null })
 }
 
 // Stripe webhook signature check (t=...,v1=... HMAC-SHA256 over `${t}.${payload}`).
-// No secret configured (local dev) → accept unsigned, loudly.
+// No secret configured → accept unsigned in dev (loudly), REFUSE in production:
+// /webhook/stripe is gate-allowlisted, so an unsigned prod webhook would be an
+// unauthenticated markIntakePaid() for anyone who can guess an intake id.
 export function verifyStripeSignature(rawBody, sigHeader) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) return { ok: true, unsigned: true };
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') return { ok: false, error: 'STRIPE_WEBHOOK_SECRET not set — refusing unsigned webhook in production' };
+    return { ok: true, unsigned: true };
+  }
   if (!sigHeader) return { ok: false, error: 'missing stripe-signature header' };
   const parts = Object.fromEntries(sigHeader.split(',').map((p) => p.split('=')));
   if (!parts.t || !parts.v1) return { ok: false, error: 'malformed stripe-signature header' };

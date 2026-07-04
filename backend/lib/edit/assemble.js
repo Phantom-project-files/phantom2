@@ -43,7 +43,7 @@ function ff(args, timeoutMs = 120000) {
 
 async function fetchToFile(slug, r2Key, destPath) {
   if (storage.backend === 'local') {
-    const src = path.join(path.dirname(new URL('../db.js', import.meta.url).pathname), '..', 'data', 'media', r2Key);
+    const src = path.join(storage.localRoot, r2Key);
     fs.copyFileSync(src, destPath);
     return;
   }
@@ -80,7 +80,8 @@ export async function runAssembleReel({ pieceId }) {
   const picked = pickTrack(brief.audio_vibe);
   if (!picked) flags.push('no_audio: track library empty — reel assembled silent');
 
-  const targetSec = shots.length * parseInt(process.env.FAL_VIDEO_DURATION || '6', 10);
+  const shotSec = parseInt(process.env.FAL_VIDEO_DURATION || '6', 10);
+  const targetSec = shots.length * shotSec;
   let cutPlan;
   let onsetsUsed = 0;
 
@@ -88,7 +89,7 @@ export async function runAssembleReel({ pieceId }) {
     // exercise the cut math with synthetic onsets; skip ffmpeg on stub bytes
     const onsets = picked ? [2.1, 5.9, 8.2, 11.8, 14.1] : [];
     onsetsUsed = onsets.length;
-    cutPlan = buildCutPlan({ shotCount: shots.length, targetSec, onsets });
+    cutPlan = buildCutPlan({ shotCount: shots.length, targetSec, onsets, maxSegSec: shotSec });
     const key = storage.makeKey(slug, 'reel', 'mp4');
     await storage.put(slug, key, MOCK_MP4, 'video/mp4');
     mediaAssets.record({
@@ -111,9 +112,9 @@ export async function runAssembleReel({ pieceId }) {
         await fetchToFile('library', picked.track.r2_key, trackFile);
         const det = await detectCuts(trackFile);
         onsetsUsed = det.onsets.length;
-        cutPlan = buildCutPlan({ shotCount: shots.length, targetSec: Math.min(targetSec, det.durationSec), onsets: det.onsets });
+        cutPlan = buildCutPlan({ shotCount: shots.length, targetSec: Math.min(targetSec, det.durationSec), onsets: det.onsets, maxSegSec: shotSec });
       } else {
-        cutPlan = buildCutPlan({ shotCount: shots.length, targetSec, onsets: [] });
+        cutPlan = buildCutPlan({ shotCount: shots.length, targetSec, onsets: [], maxSegSec: shotSec });
       }
       // trim each shot to its segment length, normalize to 1080x1920
       const segs = [];

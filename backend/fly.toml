@@ -15,8 +15,19 @@ primary_region = "iad"
   STORAGE_BACKEND = "r2"
   CLAUDE_MODE = "mock"          # flip to anthropic_api when ready to spend
   MOCK_MEDIA_GEN = "1"          # flip to 0 when Fal is funded
-  # Secrets via `fly secrets set`: ADMIN_USERNAME ADMIN_PASSWORD ANTHROPIC_API_KEY FAL_KEY
-  #   R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY STRIPE_SECRET_KEY ...
+  # REQUIRED for Fal webhooks: lib/media/render.js builds the webhook URL from this;
+  # unset → webhookUrl null → polling-only fallback (12 attempts) → stranded pipelines,
+  # the exact v1 lesson the queue was built against. Flip to https://online-phantom.com
+  # at domain cutover (docs/runbooks/domain-cutover.md).
+  PUBLIC_BASE_URL = "https://phantom2.fly.dev"
+  MEDIA_SIGNED_TTL_SEC = "300"  # signed-URL lifetime; code default is 300, pinned here for visibility
+  # Fal model ids default in code to the 2026-07-03 verified ids (lib/fal.js) —
+  # only set FAL_IMAGE_MODEL / FAL_IMAGE_EDIT_MODEL / FAL_VIDEO_MODEL here to OVERRIDE.
+  # Secrets via `fly secrets set` (see backend/secrets.prod.env.example +
+  # backend/scripts/provision-phantom2.sh):
+  #   ADMIN_USERNAME ADMIN_PASSWORD ANTHROPIC_API_KEY FAL_KEY
+  #   R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET_PROD
+  #   GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET
 
 [mounts]
   source = "phantom2_data"

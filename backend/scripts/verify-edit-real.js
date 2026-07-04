@@ -11,6 +11,7 @@ import { spawn } from 'child_process';
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom2-real-edit-'));
 process.env.PHANTOM_DB_PATH = path.join(scratch, 'real.db');
+process.env.PHANTOM_MEDIA_ROOT = path.join(scratch, 'media');   // keep storage.put()s out of the real data/media tree
 process.env.CLAUDE_MODE = 'mock';
 process.env.MOCK_MEDIA_GEN = '0';          // REAL edit paths
 process.env.STORAGE_BACKEND = 'local';

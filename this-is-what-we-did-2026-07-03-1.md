@@ -110,3 +110,79 @@ Final run: start → account chooser → consent → callback → **users row (V
 google_sub set) + user_sessions row + org auto-created + redirect to ?next target** ✓.
 COMING_SOON gate note: /auth/google/start is gated for anon; the admin cookie bypasses in
 dev. Customer flow opens when the gate drops.
+
+### Checklist item 4 — Stripe live prep ✅ TEST-MODE VERIFIED + RUNBOOK
+- Mapped the surface: ONE API call (`POST /v1/checkout/sessions`, inline price_data — no
+  dashboard Products/Prices), ONE webhook event consumed (`checkout.session.completed`),
+  route `POST /webhook/stripe` (raw-body mount before express.json). No stripe npm pkg —
+  hand-rolled REST + v1 HMAC verify; nothing version-pinned, nothing version-sensitive.
+  STRIPE_PUBLISHABLE_KEY is read NOWHERE (hosted-checkout redirect, no Stripe.js).
+- $0 offline verification (scratch DB via PHANTOM_DB_PATH, dummy whsec, zero Stripe calls):
+  25/25 — good sig accepted, bad/tampered/stale(>300s)/missing/malformed rejected,
+  timingSafeEqual length guard holds, `checkout.session.completed` flips intake→paid,
+  purchase→paid, enqueues script_gen + payment_confirmed email, records funnel.paid;
+  client_reference_id fallback works; foreign event types ignored gracefully.
+- Live server probe (no restart): unsigned POST accepted with `webhook_unsigned` warn —
+  as designed for dev (.env has no STRIPE_WEBHOOK_SECRET).
+- **Security fix landed:** verifyStripeSignature used to fail OPEN with no secret in ANY
+  env; /webhook/stripe is gate-allowlisted, so a forgotten prod secret = anyone can POST
+  a fake checkout.session.completed and unlock any intake. Now refuses unsigned when
+  NODE_ENV=production. New smoke check covers it — smoke ALL PASS (88).
+- `docs/runbooks/stripe-live.md`: dashboard steps (activate → live keys → webhook endpoint
+  `https://online-phantom.com/webhook/stripe`, ONLY checkout.session.completed, copy whsec)
+  + `fly secrets set` + stripe-CLI localhost rehearsal (`stripe listen --forward-to
+  localhost:3020/webhook/stripe`) + post-deploy checks + known limits (subs never revoke;
+  single-v1 check during secret rolls).
+
+### ADMIN_PASSWORD rotated ✅
+New random 24-char value in .env (env is the credential source); old password's bcrypt hash
+in the admins table NULLed (path-2 fallback would have kept accepting it); all 10
+admin_sessions revoked; server restarted. Operator reads it via `grep ADMIN_PASSWORD .env`.
+
+### Item 5 — R2 half CLOSED via v1 reuse ✅ (operator decision: no new bucket)
+Operator pasted... actually only R2_BUCKET_PROD landed; the three credential values were
+empty. Copied R2_ACCOUNT_ID / keys from 000_Phantom/backend/.env per operator instruction.
+First roundtrip 403 AccessDenied — v1 token is scoped to bucket `phantom-prod`, .env said
+`phantom2-prod` → repointed to `phantom-prod` (keys are tenants/<slug>-namespaced; v1 and
+2.0 objects coexist). Verified: put + stat + signed GET 200 + delete. Remaining item-5 work
+is just `DRY_RUN=0 scripts/provision-phantom2.sh` when ready to deploy (Fly already authed).
+
+### Items 4/5/6 subagent consolidation ✅ (3 parallel agents, all landed, smoke ALL PASS)
+- **Stripe (4):** fail-open webhook bug FIXED (unsigned events now refused in
+  NODE_ENV=production — was: forgetting STRIPE_WEBHOOK_SECRET in prod = anyone POSTs a fake
+  checkout.session.completed through the gate-allowlisted route and unlocks a free run).
+  25/25 offline signature+state checks. No SDK, hosted Checkout w/ inline price_data;
+  STRIPE_PUBLISHABLE_KEY read nowhere. Only event consumed: checkout.session.completed.
+  Known limitation documented: subscription cancellations never auto-revoke. Runbook:
+  docs/runbooks/stripe-live.md. OPERATOR DECISION: stays test-mode until go-live.
+- **Fly/R2 (5+8):** fly.toml FIXED (PUBLIC_BASE_URL was missing → Fal webhooks would have
+  been silently disabled in prod, the v1 stranded-pipeline failure); .dockerignore FIXED
+  (secrets.prod.env would have been baked into the image). Dockerfile audited clean
+  (ffmpeg+chromium in, port/volume/DB aligned). scripts/provision-phantom2.sh (DRY_RUN=1
+  default, dry-run verified), secrets.prod.env.example (12-secret manifest),
+  docs/runbooks/domain-cutover.md. flyctl authed as vaibhav@fallacie.com.
+- **Audio (6):** pipeline PROVEN at $0 — 3 synthetic tracks through the real HTTP upload
+  route, vibe-tag pickTrack correct both directions, piece 151 re-assembled through the
+  live job queue w/ AAC + 24 onsets, then FULLY cleaned (151's silent original restored).
+  Two real bugs fixed: off-beat cut truncation (maxSegSec clamp — cut now lands exactly on
+  a detected beat) and the scratch-suite storage leak (PHANTOM_MEDIA_ROOT isolation; found
+  41 orphan mp3s + 42 leaked scratch dirs from past runs). GAP: no console Audio panel —
+  API route is the only ingestion path. Runbook: docs/runbooks/audio-library.md.
+- .env.example stale seedance id fixed (flagged by fly agent).
+
+### Item 6 — TRENDING AUDIO: solution designed (operator asked for a rethink)
+Core fact that resolves the confusion: NO API can attach native trending audio to a reel
+(Meta doesn't expose it) — and baked commercial audio gets muted on business accounts. So
+audio must travel with the EDIT, not the file. TWO-LANE MODEL:
+- **Lane A (built today):** rights-cleared library audio baked in → reels+posts fully
+  auto-publish. Default for hands-off tiers.
+- **Lane B (to build):** trending track stored as trending_ref (title/artist/IG-audio link
+  + operator-sourced snippet used ONLY for beat analysis + preview). Beat-cut edits reel to
+  the snippet's grid → SILENT master + sync metadata (start offset, cut times). Gallery
+  plays a streaming-only preview mux (never in ZIP). Deliverable = silent master + auto-
+  generated instruction card ("Add audio '<track>' → trim to 0:07; cuts at 0.0/2.4/4.8s").
+  Deploy policy: posts auto-publish; Lane-B reels NEVER auto-publish — delivered as drafts
+  w/ instruction card (native attach is the only way the reel counts toward the trend).
+  Build list: audio_tracks.kind + trend metadata; assemble silent+preview path; gallery
+  preview player + instruction card + ZIP; deploy_piece draft guard. NOT BUILT YET —
+  awaiting operator go.

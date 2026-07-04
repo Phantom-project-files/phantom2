@@ -12,15 +12,12 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { intakes, scrapeSources, events } from './db.js';
 import { storage } from './storage.js';
 import { logEvent } from './logs.js';
 import { llm } from './llm.js';
 import * as jobs from './jobs.js';
 import { sendEmail } from './email.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const MOCK_FRAMES = JSON.stringify({
   frames: [
@@ -35,7 +32,7 @@ async function loadScrape(intake) {
   if (!intake.scrape_key) return null;
   try {
     if (storage.backend === 'local') {
-      const fp = path.join(__dirname, '..', 'data', 'media', intake.scrape_key);
+      const fp = path.join(storage.localRoot, intake.scrape_key);
       return JSON.parse(fs.readFileSync(fp, 'utf8'));
     }
     const url = await storage.signedGet(intake.tenant_slug, intake.scrape_key, 120);

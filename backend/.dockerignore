@@ -1,7 +1,10 @@
 node_modules
 data
 tenants
+# never bake ANY env/secrets file into the image (covers .env, secrets.prod.env, examples)
 .env
+*.env
+*.env.example
 *.db
 *.db-shm
 *.db-wal

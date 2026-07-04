@@ -453,7 +453,7 @@ app.get('/api/intake/:id/download.zip', async (req, res) => {
   const zip = archiver('zip', { zlib: { level: 1 } });   // media is pre-compressed
   zip.on('error', (err) => { logEvent({ level: 'error', event: 'zip.error', message: err.message }); try { res.destroy(); } catch {} });
   zip.pipe(res);
-  const localRoot = path.join(__dirname, 'data', 'media');
+  const localRoot = storage.localRoot;
   for (const { piece, asset } of entries) {
     const ext = asset.content_type === 'video/mp4' ? 'mp4' : 'png';
     const name = `${piece.scheduled_date}_${piece.kind}_${piece.id}.${ext}`;

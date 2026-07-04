@@ -13,6 +13,7 @@ import path from 'path';
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'phantom2-smoke-'));
 process.env.PHANTOM_DB_PATH = path.join(scratch, 'smoke.db');
+process.env.PHANTOM_MEDIA_ROOT = path.join(scratch, 'media');   // keep storage.put()s out of the real data/media tree
 process.env.CLAUDE_MODE = 'mock';
 process.env.MOCK_MEDIA_GEN = '1';
 process.env.STORAGE_BACKEND = 'local';
@@ -147,8 +148,7 @@ check('social probes skipped offline (honest flag)', bySource.instagram === 'ski
 
 const scrapeUrl = await storage.signedGet(tenant.slug, doneIntake.scrape_key);
 check('scrape artifact signed URL mints', scrapeUrl.startsWith('/api/media/local/'));
-const scrapeDoc = JSON.parse(fs.readFileSync(
-  path.join(path.dirname(new URL('../lib/db.js', import.meta.url).pathname), '..', 'data', 'media', doneIntake.scrape_key), 'utf8'));
+const scrapeDoc = JSON.parse(fs.readFileSync(path.join(storage.localRoot, doneIntake.scrape_key), 'utf8'));
 check('scrape.json has taxonomy sections (about/target_market/vertical)',
   !!scrapeDoc.about && !!scrapeDoc.target_market && !!scrapeDoc.vertical
   && scrapeDoc.about.business_name === 'Mock Brand');
@@ -526,6 +526,11 @@ if (await ffmpegAvailable()) {
 
 const sigCheck = verifyStripeSignature('{}', null);
 check('webhook unsigned-dev-mode accepted when no secret', sigCheck.ok === true && sigCheck.unsigned === true);
+const envBefore = process.env.NODE_ENV;
+process.env.NODE_ENV = 'production';
+const sigProd = verifyStripeSignature('{}', null);
+if (envBefore === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = envBefore;
+check('webhook unsigned REFUSED in production (no secret)', sigProd.ok === false);
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
 const sigBad = verifyStripeSignature('{}', 't=1,v1=deadbeef');
 delete process.env.STRIPE_WEBHOOK_SECRET;

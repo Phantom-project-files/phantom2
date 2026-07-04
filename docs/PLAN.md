@@ -79,11 +79,24 @@ v1 (`000_Phantom` → online-phantom.com) is the reference implementation and le
 3. **Google OAuth** — ✅ DONE 2026-07-03: client created, localhost redirect URI registered,
    full flow live-verified (user + session + org rows, next-redirect honored). At deploy:
    add the prod redirect URI, `fly secrets set` the pair, publish the consent screen.
-4. **Stripe live** — webhook endpoint + STRIPE_WEBHOOK_SECRET; swap test keys for live at launch.
+4. **Stripe live** — ✅ TEST-MODE VERIFIED 2026-07-03: signature logic (good/bad/stale/tampered)
+   + `checkout.session.completed` → paid → script_gen proven offline at $0 (25/25 scratch-DB
+   checks); unsigned webhooks now REFUSED under NODE_ENV=production (was fail-open — fixed,
+   smoke-covered). Go-live is dashboard + `fly secrets set` only — exact steps in
+   `docs/runbooks/stripe-live.md` (endpoint `https://<prod>/webhook/stripe`, sole event
+   `checkout.session.completed`; stripe-CLI rehearsal included). Note: subscriptions unlock
+   once and never auto-revoke (only that one event is consumed) — manual handling at volume.
 5. **Fly + R2 provisioning** — `fly launch` (app `phantom2`, 2 GB), volume, R2 bucket
    `phantom2-prod` + keys, secrets via `fly secrets set`.
-6. **Audio library** — upload rights-cleared tracks (console → Audio panel) with vibe tags;
-   licensing solution still being evaluated by operator.
+6. **Audio library** — upload rights-cleared tracks with vibe tags; licensing solution
+   still being evaluated by operator. ✅ PIPELINE VERIFIED 2026-07-03 at $0 with synthetic
+   tracks (removed after): real upload route → vibe-match → beat-cut re-assembly of piece 151
+   picked the right track and snapped its cut to a drop (was `track=none`). Two fixes landed:
+   `buildCutPlan` `maxSegSec` clamp (cuts snapped past a shot's end were silently truncated
+   off-beat by ffmpeg) + `PHANTOM_MEDIA_ROOT` (smoke/verify scratch runs leaked orphan files
+   into real data/media). NOTE: the console Audio panel is NOT built yet — upload is via
+   `POST /api/admin/audio` (guide: `docs/runbooks/audio-library.md`); remaining work here is
+   the operator's licensing decision + real tracks.
 7. **Remotion compositions** — ✅ SCAFFOLDED 2026-07-03: repo-root `remotion/` project
    (4.0.484 pinned; own node_modules — nothing enters backend deps or the Fly image) with
    EndCard / InfographicOverlay / MotionCurveAccents / ChalkEffect (9:16 alpha overlays) +

@@ -92,16 +92,25 @@ export async function detectCuts(inputPath, { minGapSec = 0.8, sensitivity = 1.5
 
 // Build the cut plan: split the reel across ≤3 shots with transitions snapped to
 // onsets. Falls back to even splits when the track is sparse on drops.
-export function buildCutPlan({ shotCount, targetSec, onsets = [] }) {
+// maxSegSec caps every segment at what a source shot can actually deliver:
+// `ffmpeg -t` past the end of a shot truncates SILENTLY, dragging the visual cut
+// off the beat it snapped to (found in real verification — 6.04s Seedance shots
+// vs a cut snapped to a 6.25s drop landed the cut at 6.03s, off-beat).
+export function buildCutPlan({ shotCount, targetSec, onsets = [], maxSegSec = Infinity }) {
   const n = Math.max(1, Math.min(shotCount, 3));
   const even = Array.from({ length: n - 1 }, (_, i) => (targetSec * (i + 1)) / n);
-  const cuts = even.map((ideal) => {
+  const cuts = [];
+  let prev = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const ideal = even[i];
     const near = onsets
-      .filter((o) => o > 0.5 && o < targetSec - 0.5)
+      .filter((o) => o > 0.5 && o < targetSec - 0.5 && o > prev && o - prev <= maxSegSec)
       .sort((a, b) => Math.abs(a - ideal) - Math.abs(b - ideal))[0];
-    return near != null && Math.abs(near - ideal) < targetSec / n / 2 ? near : ideal;
-  }).sort((a, b) => a - b);
-  const bounds = [0, ...cuts, targetSec];
+    const cut = near != null && Math.abs(near - ideal) < targetSec / n / 2 ? near : Math.min(ideal, prev + maxSegSec);
+    cuts.push(cut);
+    prev = cut;
+  }
+  const bounds = [0, ...cuts, Math.min(targetSec, prev + maxSegSec)];
   return Array.from({ length: n }, (_, i) => ({
     shot: i,
     start: Math.round(bounds[i] * 100) / 100,

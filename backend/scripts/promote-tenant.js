@@ -48,7 +48,7 @@ if (!imp.ok || !impData.success) { console.error(`[promote] import failed: ${imp
 console.log(`[promote] rows imported:`, impData.counts);
 
 // upload media files
-const LOCAL_MEDIA = path.join(__dirname, '..', 'data', 'media');
+const LOCAL_MEDIA = process.env.PHANTOM_MEDIA_ROOT || path.join(__dirname, '..', 'data', 'media');
 let up = 0, missing = 0;
 for (const m of impData.media_manifest) {
   const fp = path.join(LOCAL_MEDIA, m.r2_key);

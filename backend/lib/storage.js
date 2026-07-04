@@ -97,7 +97,10 @@ export function extFromContentType(ct) {
 }
 
 // ── Local-disk backend (dev / fallback) ──────────────────────────────────────
-const LOCAL_ROOT = path.join(__dirname, '..', 'data', 'media');
+// $PHANTOM_MEDIA_ROOT override exists for the scratch verification scripts
+// (smoke / verify-edit-real): without it their storage.put()s leak orphan files
+// into the real data/media tree even though their DB is isolated.
+const LOCAL_ROOT = process.env.PHANTOM_MEDIA_ROOT || path.join(__dirname, '..', 'data', 'media');
 
 const localBackend = {
   name: 'local',
@@ -238,6 +241,7 @@ async function backend() {
 // ── Public API ───────────────────────────────────────────────────────────────
 export const storage = {
   get backend() { return currentBackend(); },
+  localRoot: LOCAL_ROOT,          // local-backend disk root — the ONLY place that knows it
   makeKey,
   extFromContentType,
 
