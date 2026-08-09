@@ -124,3 +124,11 @@ React Flow dashboard (Phantom brand) → seeded real Fallacié assets + demo gra
 segments, second run fully cached). Server left running on http://localhost:3030.
 2.0 status: unchanged, still the reference codebase; audio memo (S1/S2) still the plan
 when Phantom-proper resumes.
+
+## Prompt 8 — local-phantom round 2 (see its repo log for detail)
+Enhancor key received → LIVE-verified on credits (Nano 44.3cr/28s photoreal; Seedance
+348.8cr/4s ≈ 87cr/sec — campaign budget number). 3 more research agents → 11 new ffmpeg
+edit nodes (21 total), 5-template gallery (B-Roll Remix ran green in-browser first try:
+12.00s 1080×1920 from the 3 Fallacié clips, $0), editor UX wave (QuickAdd drag-to-add,
+Cmd+D, typed+animated edges, ms/credit badges, autosave, graph switcher). local-phantom
+@ 378aa44.
