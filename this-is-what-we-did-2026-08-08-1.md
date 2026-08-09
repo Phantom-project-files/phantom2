@@ -48,25 +48,48 @@ fewer + more effective preferred."
   (beat/BPM/energy — detectCuts already exists) → generate an original trend-alike via AI
   music APIs (ElevenLabs Music etc.) → bake legally. Also unexplored: voiceover-led audio.
 
-### Research launched (in progress at this log update)
-Deep-research workflow `wf_7d4fcb7f-a91` (background): 6 questions — (1) re-verify July
-facts freshness (ig_audio, Sound Collection license scope for SaaS→client baking, Epidemic
-Partner API accessibility, Soundstripe), (2) AI-music trend-replication lane (ElevenLabs/
-Suno/Udio/Mubert/Stable Audio/Beatoven/Soundraw/Loudly — rights, API, cost, soundalike
-legal line), (3) what IG business accounts can attach natively Aug-2026, (4) confirm/kill
-"no API attaches IG library music", (5) competitor precedent (Arcads, Creatify, Predis…),
-(6) VO-led vs music-led performance evidence. Output feeds a ranked ≤10-solution memo
-with a recommended 2–3-solution stack mapped to existing pipeline pieces.
+### Research DONE → memo committed: `docs/research/audio-solutions-2026-08-08.md`
+Workflow `wf_7d4fcb7f-a91`: 106 agents, 24 sources, 116 claims → 25 verified by 3-vote
+panels (19 confirmed / 6 refuted / 0 unverified). All Meta pages live-verified 2026-08-08.
+
+**THE HEADLINE: the stall's premise is dead.** Since ~2026-05-18 Meta's Content
+Publishing API attaches IG-library audio to Reels at publish time via an
+`audio_configuration={audio_id,audio_volume,video_volume}` object on the REELS container —
+`audio_id` comes from the exact `GET /ig_audio` endpoint `trending.js` already wired.
+Metricool/bundle.social/Enji already ship it. July research missed it (feature lives on a
+separate docs page; main publishing guide still silent). Constraints: FB-Login-connected
+business/creator accounts, REELS only, third-party-authorized subset, no API preview.
+Own-account publish works in Dev mode (no App Review); client accounts need App Review or
+a reviewed intermediary (bundle.social — which also does TikTok CML `song_clip_id`).
+
+Other verified: IG trending library still personal-use-only (instruction cards for
+consumer sounds = killed); Meta Sound Collection commercial-cleared but platform-locked +
+non-sublicensable (never bake into ZIPs; client-attach shapes only); **ElevenLabs Eleven
+Music API = the clean AI lane** (GA, self-serve, API on all paid tiers, Scale <10-employee
+eligibility, ~$0.30–0.40/gen-minute → 5–20¢/reel, licensed training Merlin/Kobalt/etc.;
+bespoke-per-reel permitted, cross-client catalog PROHIBITED, no artist names in prompts,
+sector exclusions at intake); Suno lost GEMA 2026-07-31 + UMG/Sony ongoing, Udio partial
+→ both killed; soundalike doctrine = match vibe/BPM/energy, never melody/hook/voice;
+Epidemic Partner API mechanics refuted both directions → sales email, not web research.
+
+**6 ranked solutions in the memo; recommended stack:** S2 ElevenLabs bespoke baked audio
+(build NOW — un-silences ZIP delivery), S1 native-attach test via the 1-hr Meta-app
+runbook (`instagram-audio-setup.md` → `verify-trending-live.js` → try
+`audio_configuration` on Phantom's own IG), S5 VO-hook A/B on next real batch. Plus 3
+async emails (ElevenLabs written confirmation; Epidemic + Soundstripe partner terms).
 
 ## How to resume if disconnected
-- Research results: workflow run `wf_7d4fcb7f-a91`; journal at
-  `~/.claude/projects/-Users-vaibhavmathur/2bb6ae66-f0ba-40d9-be06-4281c524dfb2/subagents/workflows/wf_7d4fcb7f-a91/journal.jsonl`.
-  If lost, re-run: the brief is reproducible from this log's Prompt-4 section.
-- Then: synthesize memo → operator picks the audio stack → that unblocks checklist item 6
-  → then deploy (item 5) → Stripe live (4) → domain cutover (8).
+- Memo: `docs/research/audio-solutions-2026-08-08.md` (committed). Raw claim evidence:
+  workflow `wf_7d4fcb7f-a91` journal under
+  `~/.claude/projects/-Users-vaibhavmathur/2bb6ae66-f0ba-40d9-be06-4281c524dfb2/subagents/workflows/`.
+- Next: operator picks the stack → build S2 (`lib/edit/` ElevenLabs provider,
+  source='ai_gen') + run the S1 runbook → that closes checklist item 6 → then deploy
+  (item 5) → Stripe live (4) → domain cutover (8).
 
 ## Open threads
-- [ ] Audio-solution memo (research running)
+- [x] Audio-solution memo — DONE, committed
+- [ ] Operator decision: adopt S2+S1(+S5) stack; send the 3 emails
+- [ ] S1 empirical test: is_ads_eligible subset size; SC tracks addressable via API?
 - [ ] Commit or discard `promo/` + `docs/linkedin-strategy.md` + `gen-promo.mjs` (operator call)
 - [ ] Finish agent-reach CLI install (operator `!` commands)
 - [ ] Fal balance top-up before next real run
