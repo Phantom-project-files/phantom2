@@ -95,3 +95,15 @@ async emails (ElevenLabs written confirmation; Epidemic + Soundstripe partner te
 - [ ] Fal balance top-up before next real run
 - [ ] Blue Bottle QC verdict on 2 second-take pieces
 - [ ] Deploy checklist 5 → 4 → 3-deploy → 8
+
+## Prompt 5 — S1 deep-dive (explanation only, no code)
+Explained S1 in full: stand-out mechanism (♪ chip + audio-page aggregation vs "Original
+audio"), the 3-call publish flow w/ audio_configuration, legal inversion vs the killed
+instruction card (Phantom never touches music bytes; is_ads_eligible filter), the
+already-built inventory (trending.js/runbook/beat-cut/preview-mux/Phase-7 deploy = 90%),
+missing pieces (audio_id persistence, sync-time snippet fetch, audio_configuration on
+publish, direct Meta publish module — Ayrshare audio-attach unverified), Route A (own app,
+dev-mode test now, App Review for clients) vs Route B (bundle.social, reviewed, also does
+TikTok CML), the 4-question afternoon test (subset size, start offset, attach fidelity,
+SC reachability), and the product implication: S1 un-shelves auto-deploy; S2 covers ZIP
+clients — two halves of one delivery story.
