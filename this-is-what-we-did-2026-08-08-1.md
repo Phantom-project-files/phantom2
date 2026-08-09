@@ -107,3 +107,20 @@ dev-mode test now, App Review for clients) vs Route B (bundle.social, reviewed, 
 TikTok CML), the 4-question afternoon test (subset size, start offset, attach fidelity,
 SC reachability), and the product implication: S1 un-shelves auto-deploy; S2 covers ZIP
 clients — two halves of one delivery story.
+
+## Prompt 6-7 — THE PIVOT → local-phantom built + launched
+Operator: 90%-built app doesn't matter without sales history. New plan: prove demand with
+a real **Fallacie** campaign (friend's brand) tracked via his Shopify, using stranded
+**Enhancor credits** (Fal is empty; Enhancor was v1's provider — keys pending from
+operator). Vehicle: **local-phantom**, a local ComfyUI-style node-graph dashboard at
+`~/Downloads/local-phantom` (own git repo + session log — SEE THAT LOG for full detail).
+Built + verified this session: 4-agent research (Enhancor API spec mined from v1;
+2.0 beat-cut/llm/mock ports; React Flow v12 + ComfyUI engine patterns; yt-dlp/vision/
+Shopify) → Express+SQLite server w/ topo-sort engine + signature caching + SSE →
+10 nodes (reel import, Claude-VISION reel analyze, prompt, Claude write, Nano/Seedance
+via real Enhancor client in $0 mock mode, IG trending audio, ffmpeg beat-cut, output) →
+React Flow dashboard (Phantom brand) → seeded real Fallacié assets + demo graph →
+**full pipeline ran green end-to-end twice** (12.00s 1080×1920 final reel, 6 beat-snapped
+segments, second run fully cached). Server left running on http://localhost:3030.
+2.0 status: unchanged, still the reference codebase; audio memo (S1/S2) still the plan
+when Phantom-proper resumes.
